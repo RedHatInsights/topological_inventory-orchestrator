@@ -1,0 +1,10 @@
+#!/usr/bin/env ruby
+
+require "bundler/setup"
+
+$:.push File.expand_path("../../lib", __FILE__)
+
+require "topological_inventory/orchestrator/worker"
+require "irb"
+
+IRB.start
