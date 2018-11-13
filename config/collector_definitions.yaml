@@ -21,7 +21,7 @@
 ---
 openshift:
   default:
-    image: "topological-inventory-ci/topological-inventory-collector-openshift:latest"
+    image: "docker-registry.default.svc:5000/topological-inventory-ci/topological-inventory-collector-openshift:latest"
     sources_per_deployment: 1
 
 # For each of these configs we need:
@@ -29,4 +29,4 @@ openshift:
 #    - topological-inventory/source-type=openshift,topological-inventory/endpoint-role=default
 #  - Query the topo api for matching sources and endpoints
 #  - Determine which sources and/or endpoints are not represented in existing collector deployments
-#  - Create or edit deployments to cover sources and endpoints and remove 
+#  - Create or edit deployments to cover sources and endpoints and remove
