@@ -129,7 +129,7 @@ module TopologicalInventory
 
       def remove_openshift_objects_for_source(digest)
         return unless digest
-        deployment = object_manager.get_deployment_configs("topological-inventory/collector=true").detect { |i| i.metadata.labels["topological-inventory/collector_digest"] == digest }
+        deployment = object_manager.get_deployment_configs("topological-inventory/collector_digest=#{digest}").detect { |i| i.metadata.labels["topological-inventory/collector"] == "true" }
         return unless deployment
         puts "Removing objects for deployment #{deployment.metadata.name}"
         object_manager.delete_deployment_config(deployment.metadata.name)
