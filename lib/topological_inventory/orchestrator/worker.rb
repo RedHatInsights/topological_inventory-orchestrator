@@ -17,8 +17,6 @@ module TopologicalInventory
 
       def run
         loop do
-          Signal.trap("TERM") { break }
-
           make_openshift_match_database
 
           sleep 10
