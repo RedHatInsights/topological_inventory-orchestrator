@@ -49,13 +49,17 @@ module TopologicalInventory
               api_get("sources/#{source["id"]}/endpoints").each do |endpoint|
                 definition_information = collector_definition[endpoint["role"]]
                 next unless definition_information
+                auth = authentication_for_endpoint(endpoint["id"].to_i)
                 array << database.add(
                   {
                     "host"       => endpoint["host"],
                     "image"      => definition_information["image"],
                     "source_id"  => source["id"],
                     "source_uid" => source["uid"],
-                    "token"      => authentication_for_endpoint(endpoint["id"].to_i)["password"],
+                    "secret"     => {
+                      "password" => auth["password"],
+                      "username" => auth["username"],
+                    },
                   }
                 )
               end
@@ -116,7 +120,7 @@ module TopologicalInventory
 
       def create_openshift_objects_for_source(digest, source)
         puts "Creating objects for source #{source["source_id"]} with digest #{digest}"
-        object_manager.create_secret(collector_deployment_secret_name_for_source(source), {"openshift-token" => source["token"]})
+        object_manager.create_secret(collector_deployment_secret_name_for_source(source), source["secret"])
         object_manager.create_deployment_config(collector_deployment_name_for_source(source)) do |d|
           d[:metadata][:labels]["topological-inventory/collector_digest"] = digest
           d[:metadata][:labels]["topological-inventory/collector"] = "true"
@@ -145,16 +149,13 @@ module TopologicalInventory
       end
 
       def collector_container_environment(source)
+        secret_name = "#{collector_deployment_name_for_source(source)}-secrets"
         [
+          {:name => "AUTH_PASSWORD", :valueFrom => {:secretKeyRef => {:name => secret_name, :key => "password"}}},
+          {:name => "AUTH_USERNAME", :valueFrom => {:secretKeyRef => {:name => secret_name, :key => "username"}}},
           {:name => "INGRESS_API", :value => ENV["TOPOLOGICAL_INVENTORY_INGRESS_API_PORT"].sub("tcp://", "http://")},
-          {:name => "SOURCE_UID",  :value => source["source_uid"]},
           {:name => "OPENSHIFT_HOSTNAME", :value => source["host"]},
-          {:name => "OPENSHIFT_TOKEN", :valueFrom => {
-              :secretKeyRef => {
-                :name => "#{collector_deployment_name_for_source(source)}-secrets", :key => "openshift-token"
-              }
-            }
-          }
+          {:name => "SOURCE_UID",  :value => source["source_uid"]},
         ]
       end
     end
