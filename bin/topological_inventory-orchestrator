@@ -6,7 +6,7 @@ require "bundler/setup"
 
 $:.push File.expand_path("../../lib", __FILE__)
 
-require "topological_inventory/orchestrator/worker"
+require "topological_inventory-orchestrator"
 
 w = TopologicalInventory::Orchestrator::Worker.new
 w.run
