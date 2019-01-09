@@ -1,5 +1,5 @@
 require "json"
-require "miq-password"
+require "manageiq-password"
 require "pg"
 require "rest-client"
 require "yaml"
@@ -85,7 +85,7 @@ module TopologicalInventory
         SQL
         conn.exec_params(sql, [endpoint_id]).first.tap do |auth|
           next if auth.nil?
-          auth["password"] = MiqPassword.decrypt(auth["password"])
+          auth["password"] = ManageIQ::Password.decrypt(auth["password"])
         end || {}
       end
 
