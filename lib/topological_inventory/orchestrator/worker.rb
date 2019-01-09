@@ -12,7 +12,7 @@ module TopologicalInventory
     class Worker
       def initialize(api_base_url: ENV["API_URL"], collector_definitions_file: ENV["CONTAINER_DEFINITIONS_FILE"])
         @api_base_url = api_base_url
-        @collector_definitions_file = collector_definitions_file || "/opt/topological_inventory-orchestrator/config/collector_definitions.yaml"
+        @collector_definitions_file = collector_definitions_file || TopologicalInventory::Orchestrator.root.join("config/collector_definitions.yaml")
       end
 
       def run
