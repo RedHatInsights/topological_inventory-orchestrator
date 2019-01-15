@@ -44,32 +44,37 @@ module TopologicalInventory
 
 
       ### API STUFF
-      def collectors_from_database(hash)
-        [].tap do |array|
-          api_get("source_types").each do |source_type|
-            collector_definition = collector_definitions[source_type["name"]]
-            next if collector_definition.nil?
-            api_get("source_types/#{source_type["id"]}/sources").each do |source|
-              api_get("sources/#{source["id"]}/endpoints").each do |endpoint|
-                definition_information = collector_definition[endpoint["role"]]
-                next unless definition_information
-                auth = authentication_for_endpoint(endpoint["id"].to_i)
-                value = {
-                    "host"       => endpoint["host"],
-                    "image"      => definition_information["image"],
-                    "source_id"  => source["id"],
-                    "source_uid" => source["uid"],
-                    "secret"     => {
-                      "password" => auth["password"],
-                      "username" => auth["username"],
-                    },
-                  }
-                key = digest(value)
-                hash[key] = value
-                array << key
-              end
+      def each_endpoint
+        return enum_for(:each_endpoint) unless block_given?
+        api_get("source_types").each do |source_type|
+          collector_definition = collector_definitions[source_type["name"]]
+          next if collector_definition.nil?
+          api_get("source_types/#{source_type["id"]}/sources").each do |source|
+            api_get("sources/#{source["id"]}/endpoints").each do |endpoint|
+              definition_information = collector_definition[endpoint["role"]]
+              next unless definition_information
+              yield source, endpoint, definition_information
             end
           end
+        end
+      end
+
+      def collectors_from_database(hash)
+        each_endpoint.collect do |source, endpoint, definition_information|
+          auth = authentication_for_endpoint(endpoint["id"].to_i)
+          value = {
+              "host"       => endpoint["host"],
+              "image"      => definition_information["image"],
+              "source_id"  => source["id"],
+              "source_uid" => source["uid"],
+              "secret"     => {
+                "password" => auth["password"],
+                "username" => auth["username"],
+              },
+            }
+          key = digest(value)
+          hash[key] = value
+          key
         end
       end
 
