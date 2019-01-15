@@ -30,7 +30,7 @@ describe TopologicalInventory::Orchestrator::Worker do
   end
 
   it "#collectors_from_database" do
-    db = TopologicalInventory::Orchestrator::ObjectDatabase.new
+    db = {}
     instance = described_class.new(api_base_url: "base_url")
 
     expect(RestClient).to receive(:get).with("base_url/source_types").and_return(source_types_response)
@@ -45,7 +45,7 @@ describe TopologicalInventory::Orchestrator::Worker do
 
     instance.send(:collectors_from_database, db)
 
-    expect(db.instance_variable_get(:@database)).to eq(
+    expect(db).to eq(
       {
         "998b3e45e7dcc535f549126eb8aa92e81344d9b3" => {
           "host"       => "example.com",

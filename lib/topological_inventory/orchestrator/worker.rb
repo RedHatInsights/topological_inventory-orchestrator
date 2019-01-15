@@ -4,7 +4,6 @@ require "pg"
 require "rest-client"
 require "yaml"
 
-require "topological_inventory/orchestrator/object_database"
 require "topological_inventory/orchestrator/object_manager"
 
 module TopologicalInventory
@@ -25,22 +24,27 @@ module TopologicalInventory
 
       private
 
+      def digest(object)
+        require 'digest'
+        Digest::SHA1.hexdigest(Marshal.dump(object))
+      end
+
       def make_openshift_match_database
-        database = ObjectDatabase.new
-        expected = collectors_from_database(database)
+        hash = {}
+        expected = collectors_from_database(hash)
         current  = collectors_from_openshift
 
         puts "Checking..."
 
         (current - expected).each { |i| remove_openshift_objects_for_source(i) }
-        (expected - current).each { |i| create_openshift_objects_for_source(i, database[i]) }
+        (expected - current).each { |i| create_openshift_objects_for_source(i, hash[i]) }
 
         puts "Checking... complete."
       end
 
 
       ### API STUFF
-      def collectors_from_database(database)
+      def collectors_from_database(hash)
         [].tap do |array|
           api_get("source_types").each do |source_type|
             collector_definition = collector_definitions[source_type["name"]]
@@ -50,8 +54,7 @@ module TopologicalInventory
                 definition_information = collector_definition[endpoint["role"]]
                 next unless definition_information
                 auth = authentication_for_endpoint(endpoint["id"].to_i)
-                array << database.add(
-                  {
+                value = {
                     "host"       => endpoint["host"],
                     "image"      => definition_information["image"],
                     "source_id"  => source["id"],
@@ -61,7 +64,9 @@ module TopologicalInventory
                       "username" => auth["username"],
                     },
                   }
-                )
+                key = digest(value)
+                hash[key] = value
+                array << key
               end
             end
           end
