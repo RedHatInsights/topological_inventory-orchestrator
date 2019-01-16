@@ -1,4 +1,5 @@
 require "json"
+require "manageiq-loggers"
 require "manageiq-password"
 require "pg"
 require "rest-client"
@@ -9,9 +10,12 @@ require "topological_inventory/orchestrator/object_manager"
 module TopologicalInventory
   module Orchestrator
     class Worker
+      attr_reader :logger
+
       def initialize(api_base_url: ENV["API_URL"], collector_definitions_file: ENV["CONTAINER_DEFINITIONS_FILE"])
         @api_base_url = api_base_url
         @collector_definitions_file = collector_definitions_file || TopologicalInventory::Orchestrator.root.join("config/collector_definitions.yaml")
+        @logger = ManageIQ::Loggers::Container.new
       end
 
       def run
@@ -34,12 +38,12 @@ module TopologicalInventory
         expected = collectors_from_database(hash)
         current  = collectors_from_openshift
 
-        puts "Checking..."
+        logger.info("Checking...")
 
         (current - expected).each { |i| remove_openshift_objects_for_source(i) }
         (expected - current).each { |i| create_openshift_objects_for_source(i, hash[i]) }
 
-        puts "Checking... complete."
+        logger.info("Checking... complete.")
       end
 
 
@@ -129,7 +133,7 @@ module TopologicalInventory
       end
 
       def create_openshift_objects_for_source(digest, source)
-        puts "Creating objects for source #{source["source_id"]} with digest #{digest}"
+        logger.info("Creating objects for source #{source["source_id"]} with digest #{digest}")
         object_manager.create_secret(collector_deployment_secret_name_for_source(source), source["secret"])
         object_manager.create_deployment_config(collector_deployment_name_for_source(source)) do |d|
           d[:metadata][:labels]["topological-inventory/collector_digest"] = digest
@@ -145,7 +149,7 @@ module TopologicalInventory
         return unless digest
         deployment = object_manager.get_deployment_configs("topological-inventory/collector_digest=#{digest}").detect { |i| i.metadata.labels["topological-inventory/collector"] == "true" }
         return unless deployment
-        puts "Removing objects for deployment #{deployment.metadata.name}"
+        logger.info("Removing objects for deployment #{deployment.metadata.name}")
         object_manager.delete_deployment_config(deployment.metadata.name)
         object_manager.delete_secret("#{deployment.metadata.name}-secrets")
       end
