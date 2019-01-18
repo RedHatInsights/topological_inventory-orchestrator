@@ -175,7 +175,7 @@ module TopologicalInventory
           {:name => "AUTH_PASSWORD", :valueFrom => {:secretKeyRef => {:name => secret_name, :key => "password"}}},
           {:name => "AUTH_USERNAME", :valueFrom => {:secretKeyRef => {:name => secret_name, :key => "username"}}},
           {:name => "INGRESS_API", :value => "http://#{ENV["TOPOLOGICAL_INVENTORY_INGRESS_API_SERVICE_HOST"]}:#{ENV["TOPOLOGICAL_INVENTORY_INGRESS_API_SERVICE_PORT"]}"},
-          {:name => "OPENSHIFT_HOSTNAME", :value => source["host"]},
+          {:name => "SOURCE_HOST", :value => source["host"]},
           {:name => "SOURCE_UID",  :value => source["source_uid"]},
         ]
       end
