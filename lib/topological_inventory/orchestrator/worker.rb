@@ -50,11 +50,11 @@ module TopologicalInventory
       ### API STUFF
       def each_endpoint
         return enum_for(:each_endpoint) unless block_given?
-        api_get("source_types").each do |source_type|
+        each_resource(url_for("source_types")) do |source_type|
           collector_definition = collector_definitions[source_type["name"]]
           next if collector_definition.nil?
-          api_get("source_types/#{source_type["id"]}/sources").each do |source|
-            api_get("sources/#{source["id"]}/endpoints").each do |endpoint|
+          each_resource(url_for("source_types/#{source_type["id"]}/sources")) do |source|
+            each_resource(url_for("sources/#{source["id"]}/endpoints")) do |endpoint|
               definition_information = collector_definition[endpoint["role"]]
               next unless definition_information
               yield source, endpoint, definition_information
@@ -82,8 +82,15 @@ module TopologicalInventory
         end
       end
 
-      def api_get(path)
-        JSON.parse(RestClient.get(File.join(@api_base_url, path)))
+      def url_for(path)
+        File.join(@api_base_url, path)
+      end
+
+      def each_resource(url, &block)
+        return if url.nil?
+        response = JSON.parse(RestClient.get(url))
+        response["data"].each { |i| yield i }
+        each_resource(response["links"]["next"], &block)
       end
 
 
