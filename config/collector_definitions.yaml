@@ -21,7 +21,7 @@
 ---
 openshift:
   default:
-    image: "docker-registry.default.svc:5000/topological-inventory-ci/topological-inventory-collector-openshift:latest"
+    image: "buildfactory/topological-inventory-ci/topological-inventory-collector-openshift:latest"
     sources_per_deployment: 1
 
 # For each of these configs we need:
