@@ -1,7 +1,6 @@
 require "json"
 require "manageiq-loggers"
 require "manageiq-password"
-require "pg"
 require "rest-client"
 require "yaml"
 
@@ -55,17 +54,19 @@ module TopologicalInventory
           next if collector_definition.nil?
           each_resource(url_for("source_types/#{source_type["id"]}/sources")) do |source|
             each_resource(url_for("sources/#{source["id"]}/endpoints")) do |endpoint|
-              definition_information = collector_definition[endpoint["role"]]
-              next unless definition_information
-              yield source, endpoint, definition_information
+              each_resource(url_for("authentications?resource_type=Endpoint&resource_id=#{endpoint["id"]}&authtype=default")) do |authentication|
+                definition_information = collector_definition[endpoint["role"]]
+                next unless definition_information
+                yield source, endpoint, authentication, definition_information
+              end
             end
           end
         end
       end
 
       def collectors_from_database(hash)
-        each_endpoint.collect do |source, endpoint, definition_information|
-          auth = authentication_for_endpoint(endpoint["id"].to_i)
+        each_endpoint.collect do |source, endpoint, authentication, definition_information|
+          auth = authentication_with_password(authentication["id"])
           value = {
               "host"       => endpoint["host"],
               "image"      => definition_information["image"],
@@ -95,29 +96,12 @@ module TopologicalInventory
 
 
       # HACK for Authentications
-      def authentication_for_endpoint(endpoint_id)
-        conn = PG::Connection.new(pg_connection_args)
-        sql = <<~SQL
-          SELECT *
-          FROM authentications
-          WHERE
-            resource_type = 'Endpoint' AND
-            resource_id = $1
-        SQL
-        conn.exec_params(sql, [endpoint_id]).first.tap do |auth|
-          next if auth.nil?
-          auth["password"] = ManageIQ::Password.decrypt(auth["password"])
-        end || {}
-      end
-
-      def pg_connection_args
-        @pg_connection_args ||= {
-          :host     => ENV["DATABASE_HOST"],
-          :port     => ENV["DATABASE_PORT"],
-          :dbname   => ENV["DATABASE_NAME"],
-          :user     => ENV["DATABASE_USER"],
-          :password => ENV["DATABASE_PASSWORD"]
-        }.freeze
+      def authentication_with_password(id)
+        url = URI.parse(@api_base_url).tap do |uri|
+          uri.path = "/internal/v0.0/authentications/#{id}"
+          uri.query = "expose_encrypted_attribute[]=password"
+        end.to_s
+        JSON.parse(RestClient.get(url.to_s))
       end
 
 
