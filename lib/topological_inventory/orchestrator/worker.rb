@@ -53,12 +53,9 @@ module TopologicalInventory
           collector_definition = collector_definitions[source_type["name"]]
           next if collector_definition.nil?
           each_resource(url_for("source_types/#{source_type["id"]}/sources")) do |source|
-            each_resource(url_for("sources/#{source["id"]}/endpoints")) do |endpoint|
-              authentication_url = url_for("authentications?resource_type=Endpoint&resource_id=#{endpoint["id"]}")
-              authentication = JSON.parse(RestClient.get(authentication_url))["data"].first
-              next unless authentication
-              yield source, endpoint, authentication, collector_definition
-            end
+            next unless endpoint = get_and_parse(url_for("sources/#{source["id"]}/endpoints"))["data"].first
+            next unless authentication = get_and_parse(url_for("authentications?resource_type=Endpoint&resource_id=#{endpoint["id"]}"))["data"].first
+            yield source, endpoint, authentication, collector_definition
           end
         end
       end
@@ -91,9 +88,13 @@ module TopologicalInventory
 
       def each_resource(url, &block)
         return if url.nil?
-        response = JSON.parse(RestClient.get(url))
+        response = get_and_parse(url)
         response["data"].each { |i| yield i }
         each_resource(response["links"]["next"], &block)
+      end
+
+      def get_and_parse(url)
+        JSON.parse(RestClient.get(url))
       end
 
 
@@ -103,7 +104,7 @@ module TopologicalInventory
           uri.path = "/internal/v0.0/authentications/#{id}"
           uri.query = "expose_encrypted_attribute[]=password"
         end.to_s
-        JSON.parse(RestClient.get(url.to_s))
+        get_and_parse(url.to_s)
       end
 
 

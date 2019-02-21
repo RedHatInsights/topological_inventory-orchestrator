@@ -68,11 +68,11 @@ describe TopologicalInventory::Orchestrator::Worker do
       expect(RestClient).to receive(:get).with("http://example.com/sources/1/endpoints").and_return(sources_1_endpoints_response)
       expect(RestClient).to receive(:get).with("http://example.com/sources/2/endpoints").and_return(sources_2_endpoints_response)
       expect(RestClient).to receive(:get).with("http://example.com/authentications?resource_type=Endpoint&resource_id=1").and_return(endpoints_1_authentications_response)
-      expect(RestClient).to receive(:get).with("http://example.com/authentications?resource_type=Endpoint&resource_id=8").and_return(endpoints_8_authentications_response)
-      expect(RestClient).to receive(:get).with("http://example.com/authentications?resource_type=Endpoint&resource_id=9").and_return(endpoints_8_authentications_response)
       expect(RestClient).to receive(:get).with("http://example.com/internal/v0.0/authentications/1?expose_encrypted_attribute[]=password").and_return({"username" => "USER", "password" => "PASS"}.to_json)
 
       expect(RestClient).not_to receive(:get).with("http://example.com/source_types/2/sources")
+      expect(RestClient).not_to receive(:get).with("http://example.com/authentications?resource_type=Endpoint&resource_id=8")
+      expect(RestClient).not_to receive(:get).with("http://example.com/authentications?resource_type=Endpoint&resource_id=9")
       expect(RestClient).not_to receive(:get).with("http://example.com/internal/v0.0/authentications/8?expose_encrypted_attribute[]=password")
       expect(RestClient).not_to receive(:get).with("http://example.com/internal/v0.0/authentications/9?expose_encrypted_attribute[]=password")
 
