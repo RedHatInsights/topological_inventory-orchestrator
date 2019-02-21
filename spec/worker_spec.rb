@@ -79,17 +79,18 @@ describe TopologicalInventory::Orchestrator::Worker do
       instance.send(:collectors_from_database, db)
 
       expect(db).to eq(
-        {
-          "998b3e45e7dcc535f549126eb8aa92e81344d9b3" => {
-            "host"       => "example.com",
-            "image"      => "docker-registry.default.svc:5000/topological-inventory-ci/topological-inventory-collector-openshift:latest",
-            "source_id"  => "2",
-            "source_uid" => "31b5338b-685d-4056-ba39-d00b4d7f19cc",
-            "secret"     => {
-              "password" => "PASS",
-              "username" => "USER"
-            },
-          }
+        "f52ab314d4d6fbaed87261c4a72652bf7a65cf97" => {
+          "endpoint_host"   => "example.com",
+          "endpoint_path"   => "/api",
+          "endpoint_port"   => 8443,
+          "endpoint_scheme" => "https",
+          "image"           => "buildfactory/topological-inventory-ci/topological-inventory-collector-openshift:latest",
+          "source_id"       => "2",
+          "source_uid"      => "31b5338b-685d-4056-ba39-d00b4d7f19cc",
+          "secret"          => {
+            "password" => "PASS",
+            "username" => "USER"
+          },
         }
       )
     end

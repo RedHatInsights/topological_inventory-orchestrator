@@ -64,18 +64,21 @@ module TopologicalInventory
       end
 
       def collectors_from_database(hash)
-        each_endpoint.collect do |source, endpoint, authentication, definition_information|
+        each_endpoint.collect do |source, endpoint, authentication, collector_definition|
           auth = authentication_with_password(authentication["id"])
           value = {
-              "host"       => endpoint["host"],
-              "image"      => definition_information["image"],
-              "source_id"  => source["id"],
-              "source_uid" => source["uid"],
-              "secret"     => {
-                "password" => auth["password"],
-                "username" => auth["username"],
-              },
-            }
+            "endpoint_host"   => endpoint["host"],
+            "endpoint_path"   => endpoint["path"],
+            "endpoint_port"   => endpoint["port"],
+            "endpoint_scheme" => endpoint["scheme"],
+            "image"           => collector_definition["image"],
+            "source_id"       => source["id"],
+            "source_uid"      => source["uid"],
+            "secret"          => {
+              "password" => auth["password"],
+              "username" => auth["username"],
+            },
+          }
           key = digest(value)
           hash[key] = value
           key
@@ -157,8 +160,11 @@ module TopologicalInventory
         [
           {:name => "AUTH_PASSWORD", :valueFrom => {:secretKeyRef => {:name => secret_name, :key => "password"}}},
           {:name => "AUTH_USERNAME", :valueFrom => {:secretKeyRef => {:name => secret_name, :key => "username"}}},
+          {:name => "ENDPOINT_HOST", :value => source["endpoint_host"]},
+          {:name => "ENDPOINT_PATH", :value => source["endpoint_path"]},
+          {:name => "ENDPOINT_PORT", :value => source["endpoint_port"]},
+          {:name => "ENDPOINT_SCHEME", :value => source["endpoint_scheme"]},
           {:name => "INGRESS_API", :value => "http://#{ENV["TOPOLOGICAL_INVENTORY_INGRESS_API_SERVICE_HOST"]}:#{ENV["TOPOLOGICAL_INVENTORY_INGRESS_API_SERVICE_PORT"]}"},
-          {:name => "SOURCE_HOST", :value => source["host"]},
           {:name => "SOURCE_UID",  :value => source["source_uid"]},
         ]
       end
