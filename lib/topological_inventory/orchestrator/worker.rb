@@ -54,11 +54,10 @@ module TopologicalInventory
           next if collector_definition.nil?
           each_resource(url_for("source_types/#{source_type["id"]}/sources")) do |source|
             each_resource(url_for("sources/#{source["id"]}/endpoints")) do |endpoint|
-              each_resource(url_for("authentications?resource_type=Endpoint&resource_id=#{endpoint["id"]}&authtype=default")) do |authentication|
-                definition_information = collector_definition[endpoint["role"]]
-                next unless definition_information
-                yield source, endpoint, authentication, definition_information
-              end
+              authentication_url = url_for("authentications?resource_type=Endpoint&resource_id=#{endpoint["id"]}")
+              authentication = JSON.parse(RestClient.get(authentication_url))["data"].first
+              next unless authentication
+              yield source, endpoint, authentication, collector_definition
             end
           end
         end

@@ -39,19 +39,42 @@ describe TopologicalInventory::Orchestrator::Worker do
       EOJ
     end
 
+    let(:endpoints_1_authentications_response) do
+      <<~EOJ
+        {
+          "links": {},
+          "data": [
+            {"id":"1","authtype":"default"}
+          ]
+        }
+      EOJ
+    end
+
+    let(:endpoints_8_authentications_response) do
+      <<~EOJ
+        {
+          "links": {},
+          "data": []
+        }
+      EOJ
+    end
+
     it "generates the expected hash" do
       db = {}
-      instance = described_class.new(api_base_url: "base_url")
+      instance = described_class.new(api_base_url: "http://example.com")
 
-      expect(RestClient).to receive(:get).with("base_url/source_types").and_return(source_types_response)
-      expect(RestClient).to receive(:get).with("base_url/source_types/1/sources").and_return(source_types_1_sources_response)
-      expect(RestClient).to receive(:get).with("base_url/sources/1/endpoints").and_return(sources_1_endpoints_response)
-      expect(RestClient).to receive(:get).with("base_url/sources/2/endpoints").and_return(sources_2_endpoints_response)
-      expect(instance).to receive(:authentication_for_endpoint).with(1).and_return({"username" => "USER", "password" => "PASS"})
+      expect(RestClient).to receive(:get).with("http://example.com/source_types").and_return(source_types_response)
+      expect(RestClient).to receive(:get).with("http://example.com/source_types/1/sources").and_return(source_types_1_sources_response)
+      expect(RestClient).to receive(:get).with("http://example.com/sources/1/endpoints").and_return(sources_1_endpoints_response)
+      expect(RestClient).to receive(:get).with("http://example.com/sources/2/endpoints").and_return(sources_2_endpoints_response)
+      expect(RestClient).to receive(:get).with("http://example.com/authentications?resource_type=Endpoint&resource_id=1").and_return(endpoints_1_authentications_response)
+      expect(RestClient).to receive(:get).with("http://example.com/authentications?resource_type=Endpoint&resource_id=8").and_return(endpoints_8_authentications_response)
+      expect(RestClient).to receive(:get).with("http://example.com/authentications?resource_type=Endpoint&resource_id=9").and_return(endpoints_8_authentications_response)
+      expect(RestClient).to receive(:get).with("http://example.com/internal/v0.0/authentications/1?expose_encrypted_attribute[]=password").and_return({"username" => "USER", "password" => "PASS"}.to_json)
 
-      expect(RestClient).not_to receive(:get).with("base_url/source_types/2/sources")
-      expect(instance).to_not receive(:authentication_for_endpoint).with(8)
-      expect(instance).to_not receive(:authentication_for_endpoint).with(9)
+      expect(RestClient).not_to receive(:get).with("http://example.com/source_types/2/sources")
+      expect(RestClient).not_to receive(:get).with("http://example.com/internal/v0.0/authentications/8?expose_encrypted_attribute[]=password")
+      expect(RestClient).not_to receive(:get).with("http://example.com/internal/v0.0/authentications/9?expose_encrypted_attribute[]=password")
 
       instance.send(:collectors_from_database, db)
 
