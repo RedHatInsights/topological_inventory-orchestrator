@@ -47,8 +47,8 @@ module TopologicalInventory
 
 
       ### API STUFF
-      def each_endpoint
-        return enum_for(:each_endpoint) unless block_given?
+      def each_source
+        return enum_for(:each_source) unless block_given?
         each_resource(url_for("source_types")) do |source_type|
           collector_definition = collector_definitions[source_type["name"]]
           next if collector_definition.nil?
@@ -61,7 +61,7 @@ module TopologicalInventory
       end
 
       def collectors_from_database(hash)
-        each_endpoint.collect do |source, endpoint, authentication, collector_definition|
+        each_source.collect do |source, endpoint, authentication, collector_definition|
           auth = authentication_with_password(authentication["id"])
           value = {
             "endpoint_host"   => endpoint["host"],
