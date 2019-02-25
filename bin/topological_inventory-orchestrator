@@ -1,9 +1,12 @@
 #!/usr/bin/env ruby
 
+Signal.trap("TERM") { exit }
+
 require "bundler/setup"
 
 $:.push File.expand_path("../../lib", __FILE__)
 
-require "topological_inventory/orchestrator/worker"
-w = TopologicalInventory::Orchestrator::Worker.new(ENV["API_URL"], ENV["INGRESS_API_URL"])
+require "topological_inventory-orchestrator"
+
+w = TopologicalInventory::Orchestrator::Worker.new
 w.run

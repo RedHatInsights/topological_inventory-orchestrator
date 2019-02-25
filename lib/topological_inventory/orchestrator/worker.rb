@@ -1,124 +1,173 @@
 require "json"
-require "yaml"
+require "manageiq-loggers"
+require "manageiq-password"
 require "rest-client"
-require "pg"
-require "miq-password"
+require "yaml"
 
 require "topological_inventory/orchestrator/object_manager"
 
 module TopologicalInventory
   module Orchestrator
     class Worker
-      attr_reader :api_url, :ingress_url
+      attr_reader :logger
 
-      def initialize(api_url, ingress_url, collector_definitions_file)
-        raise "Access to the cluster using serviceaccounts is required" unless ObjectManager.available?
-        @api_url               = api_url
-        @ingress_url           = ingress_url
-        @object_manager        = ObjectManager.new
-        @collector_definitions = YAML.load_file(collector_definitions_file)
+      def initialize(api_base_url: ENV["API_URL"], collector_definitions_file: ENV["CONTAINER_DEFINITIONS_FILE"])
+        @api_base_url = api_base_url
+        @collector_definitions_file = collector_definitions_file || TopologicalInventory::Orchestrator.root.join("config/collector_definitions.yaml")
+        @logger = ManageIQ::Loggers::Container.new
       end
 
       def run
         loop do
-          Signal.trap("TERM") { break }
-          collector_definitions.each do |source_type, endpoint_info|
-            endpoint_info.each do |endpoint_role, options|
-              resolve_collector_type(source_type, endpoint_role, options)
-            end
-          end
+          make_openshift_match_database
+
           sleep 10
-        end
-      end
-
-      def resolve_collector_type(source_type, endpoint_role, options)
-      end
-
-      def create_collectors_for_new_sources
-        sources.each do |source|
-          create_objects_for_source(source) unless have_deployment_for_source?(source)
-        end
-      end
-      
-      def remove_collectors_for_deleted_sources
-        collector_deployments.each do |deployment|
-          unless sources.include?(source_for_deployment(deployment))
-            @object_manager.delete_deployment_config(deployment.metadata.name)
-            @object_manager.delete_secret("#{deployment.metadata.name}-secrets")
-          end
-        end
-      end
-
-      def have_deployment_for_source?(source)
-        collector_deployments.detect do |deployment|
-          source_for_deployment(deployment) == source["uid"]
-        end
-      end
-
-      def create_objects_for_source(source)
-        @object_manager.create_deployment_config(deployment_name_for_source(source)) do |d|
-          container = d[:spec][:template][:spec][:containers].first
-          container[:env] << collector_container_environment(source)
-          container[:image] = "#{ENV["MY_NAMESPACE"]}/topological-inventory-collector-openshift:latest"
         end
       end
 
       private
 
-      def collector_container_environment(source)
+      def digest(object)
+        require 'digest'
+        Digest::SHA1.hexdigest(Marshal.dump(object))
       end
 
-      def secret_name_for_source(source)
-        "#{deployment_name_for_source(source)}-secrets"
+      def make_openshift_match_database
+        hash = {}
+        expected = collectors_from_database(hash)
+        current  = collectors_from_openshift
+
+        logger.info("Checking...")
+
+        (current - expected).each { |i| remove_openshift_objects_for_source(i) }
+        (expected - current).each { |i| create_openshift_objects_for_source(i, hash[i]) }
+
+        logger.info("Checking... complete.")
       end
 
-      def deployment_name_for_source(source)
-        "topological-inventory-collector-source-#{source["id"]}"
-      end
 
-      def source_for_deployment(d)
-        d.metadata.labels["topological-inventory/source"]
-      end
-
-      def sources
-        @sources ||= JSON.parse(RestClient.get(File.join(api_url, "api/v0.0/sources")))
-      end
-
-      def collector_deployments
-        @collector_deployments ||= @object_manager.get_deployment_configs("topological-inventory/collector=true")
-      end
-
-      def endpoints_for_source(source_id)
-        JSON.parse(RestClient.get(File.join(api_url, "api/v0.0/sources/#{source_id}/endpoints")))
-      end
-
-      def authentication_for_endpoint(endpoint_id)
-        conn = PG::Connection.new(pg_connection_args)
-        sql = <<~SQL
-          SELECT *
-          FROM authentications
-          WHERE
-            resource_type = 'Endpoint' AND
-            resource_id = $1
-        SQL
-        conn.exec_params(sql, [endpoint_id]).first.tap do |auth|
-          auth["password"] = MiqPassword.decrypt(auth["password"])
+      ### API STUFF
+      def each_source
+        return enum_for(:each_source) unless block_given?
+        each_resource(url_for("source_types")) do |source_type|
+          collector_definition = collector_definitions[source_type["name"]]
+          next if collector_definition.nil?
+          each_resource(url_for("source_types/#{source_type["id"]}/sources")) do |source|
+            next unless endpoint = get_and_parse(url_for("sources/#{source["id"]}/endpoints"))["data"].first
+            next unless authentication = get_and_parse(url_for("authentications?resource_type=Endpoint&resource_id=#{endpoint["id"]}"))["data"].first
+            yield source, endpoint, authentication, collector_definition
+          end
         end
       end
 
-      def pg_connection_args
-        {
-          :host     => ENV["DATABASE_HOST"],
-          :port     => ENV["DATABASE_PORT"],
-          :dbname   => ENV["DATABASE_NAME"],
-          :user     => ENV["DATABASE_USER"],
-          :password => ENV["DATABASE_PASSWORD"]
-        }.freeze
+      def collectors_from_database(hash)
+        each_source.collect do |source, endpoint, authentication, collector_definition|
+          auth = authentication_with_password(authentication["id"])
+          value = {
+            "endpoint_host"   => endpoint["host"],
+            "endpoint_path"   => endpoint["path"],
+            "endpoint_port"   => endpoint["port"],
+            "endpoint_scheme" => endpoint["scheme"],
+            "image"           => collector_definition["image"],
+            "source_id"       => source["id"],
+            "source_uid"      => source["uid"],
+            "secret"          => {
+              "password" => auth["password"],
+              "username" => auth["username"],
+            },
+          }
+          key = digest(value)
+          hash[key] = value
+          key
+        end
       end
 
-      def clear_caches
-        @sources = nil
-        @collector_deployments = nil
+      def url_for(path)
+        File.join(@api_base_url, path)
+      end
+
+      def each_resource(url, &block)
+        return if url.nil?
+        response = get_and_parse(url)
+        response["data"].each { |i| yield i }
+        each_resource(response["links"]["next"], &block)
+      end
+
+      def get_and_parse(url)
+        JSON.parse(RestClient.get(url))
+      end
+
+
+      # HACK for Authentications
+      def authentication_with_password(id)
+        url = URI.parse(@api_base_url).tap do |uri|
+          uri.path = "/internal/v0.0/authentications/#{id}"
+          uri.query = "expose_encrypted_attribute[]=password"
+        end.to_s
+        get_and_parse(url.to_s)
+      end
+
+
+      ### Orchestrator Stuff
+      def collector_definitions
+        @collector_definitions ||= begin
+          require 'yaml'
+          YAML.load_file(@collector_definitions_file)
+        end
+      end
+
+      def object_manager
+        @object_manager ||= ObjectManager.new
+      end
+
+
+      ### Openshift stuff
+      def collectors_from_openshift
+        object_manager.get_deployment_configs("topological-inventory/collector=true").collect { |i| i.metadata.labels["topological-inventory/collector_digest"] }
+      end
+
+      def create_openshift_objects_for_source(digest, source)
+        logger.info("Creating objects for source #{source["source_id"]} with digest #{digest}")
+        object_manager.create_secret(collector_deployment_secret_name_for_source(source), source["secret"])
+        object_manager.create_deployment_config(collector_deployment_name_for_source(source)) do |d|
+          d[:metadata][:labels]["topological-inventory/collector_digest"] = digest
+          d[:metadata][:labels]["topological-inventory/collector"] = "true"
+          d[:spec][:replicas] = 1
+          container = d[:spec][:template][:spec][:containers].first
+          container[:env] = collector_container_environment(source)
+          container[:image] = source["image"]
+        end
+      end
+
+      def remove_openshift_objects_for_source(digest)
+        return unless digest
+        deployment = object_manager.get_deployment_configs("topological-inventory/collector_digest=#{digest}").detect { |i| i.metadata.labels["topological-inventory/collector"] == "true" }
+        return unless deployment
+        logger.info("Removing objects for deployment #{deployment.metadata.name}")
+        object_manager.delete_deployment_config(deployment.metadata.name)
+        object_manager.delete_secret("#{deployment.metadata.name}-secrets")
+      end
+
+      def collector_deployment_name_for_source(source)
+        "topological-inventory-collector-source-#{source["source_id"]}"
+      end
+
+      def collector_deployment_secret_name_for_source(source)
+        "#{collector_deployment_name_for_source(source)}-secrets"
+      end
+
+      def collector_container_environment(source)
+        secret_name = "#{collector_deployment_name_for_source(source)}-secrets"
+        [
+          {:name => "AUTH_PASSWORD", :valueFrom => {:secretKeyRef => {:name => secret_name, :key => "password"}}},
+          {:name => "AUTH_USERNAME", :valueFrom => {:secretKeyRef => {:name => secret_name, :key => "username"}}},
+          {:name => "ENDPOINT_HOST", :value => source["endpoint_host"]},
+          {:name => "ENDPOINT_PATH", :value => source["endpoint_path"]},
+          {:name => "ENDPOINT_PORT", :value => source["endpoint_port"]},
+          {:name => "ENDPOINT_SCHEME", :value => source["endpoint_scheme"]},
+          {:name => "INGRESS_API", :value => "http://#{ENV["TOPOLOGICAL_INVENTORY_INGRESS_API_SERVICE_HOST"]}:#{ENV["TOPOLOGICAL_INVENTORY_INGRESS_API_SERVICE_PORT"]}"},
+          {:name => "SOURCE_UID",  :value => source["source_uid"]},
+        ]
       end
     end
   end

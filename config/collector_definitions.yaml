@@ -1,32 +1,7 @@
 # Layout of this file
 # <source_type>:
-#   <endpoint_role>: - "default" indicates any not specified explicitly in this config
-#     image: <image_ref>
-#     sources_per_deployment: number of sources to provide to a single deployment of this image
-#
-# Example:
-# ---
-# openshift:
-#   inventory:
-#     image: "my-project/openshift-inventory-collector:latest"
-#     sources_per_deployment: 2
-#   metrics:
-#     image: "docker.io/openshift-collectors/metrics-collector:latest"
-#     sources_per_deployment: 1
-# amazon:
-#   default:
-#     image: "my-project/amazon-collector:latest"
-#     sources_per_deployment: 3
+#   image: <image_ref>
 
 ---
 openshift:
-  default:
-    image: "topological-inventory-ci/topological-inventory-collector-openshift:latest"
-    sources_per_deployment: 1
-
-# For each of these configs we need:
-#  - Query openshift for deployment configs with the labels:
-#    - topological-inventory/source-type=openshift,topological-inventory/endpoint-role=default
-#  - Query the topo api for matching sources and endpoints
-#  - Determine which sources and/or endpoints are not represented in existing collector deployments
-#  - Create or edit deployments to cover sources and endpoints and remove 
+  image: "buildfactory/topological-inventory-ci/topological-inventory-collector-openshift:latest"
