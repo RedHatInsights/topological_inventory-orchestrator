@@ -9,10 +9,11 @@ require "topological_inventory/orchestrator/object_manager"
 module TopologicalInventory
   module Orchestrator
     class Worker
+      API_VERSION = "v0.1".freeze
+
       attr_reader :logger
 
-      def initialize(api_base_url, collector_definitions_file = ENV["COLLECTOR_DEFINITIONS_FILE"])
-        @api_base_url = api_base_url
+      def initialize(collector_definitions_file = ENV["COLLECTOR_DEFINITIONS_FILE"])
         @collector_definitions_file = collector_definitions_file || TopologicalInventory::Orchestrator.root.join("config/collector_definitions.yaml")
         @logger = ManageIQ::Loggers::Container.new
       end
@@ -26,6 +27,20 @@ module TopologicalInventory
       end
 
       private
+
+      def api_base_url
+        @api_base_url ||= begin
+          path = File.join("/", ENV["PATH_PREFIX"].to_s, ENV["APP_NAME"].to_s, API_VERSION)
+
+          require "uri"
+
+          URI::HTTP.build(
+            :host => ENV["TOPOLOGICAL_INVENTORY_API_SERVICE_HOST"],
+            :port => ENV["TOPOLOGICAL_INVENTORY_API_SERVICE_PORT"],
+            :path => path
+          ).to_s
+        end
+      end
 
       def digest(object)
         require 'digest'
@@ -83,7 +98,7 @@ module TopologicalInventory
       end
 
       def url_for(path)
-        File.join(@api_base_url, path)
+        File.join(api_base_url, path)
       end
 
       def each_resource(url, &block)
@@ -100,7 +115,7 @@ module TopologicalInventory
 
       # HACK for Authentications
       def authentication_with_password(id)
-        url = URI.parse(@api_base_url).tap do |uri|
+        url = URI.parse(api_base_url).tap do |uri|
           uri.path = "/internal/v0.0/authentications/#{id}"
           uri.query = "expose_encrypted_attribute[]=password"
         end.to_s
