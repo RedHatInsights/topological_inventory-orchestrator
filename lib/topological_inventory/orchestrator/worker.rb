@@ -11,7 +11,7 @@ module TopologicalInventory
     class Worker
       attr_reader :logger
 
-      def initialize(api_base_url: ENV["API_URL"], collector_definitions_file: ENV["CONTAINER_DEFINITIONS_FILE"])
+      def initialize(api_base_url, collector_definitions_file = ENV["COLLECTOR_DEFINITIONS_FILE"])
         @api_base_url = api_base_url
         @collector_definitions_file = collector_definitions_file || TopologicalInventory::Orchestrator.root.join("config/collector_definitions.yaml")
         @logger = ManageIQ::Loggers::Container.new

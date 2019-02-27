@@ -61,7 +61,7 @@ describe TopologicalInventory::Orchestrator::Worker do
 
     it "generates the expected hash" do
       db = {}
-      instance = described_class.new(api_base_url: "http://example.com")
+      instance = described_class.new("http://example.com")
 
       expect(RestClient).to receive(:get).with("http://example.com/source_types").and_return(source_types_response)
       expect(RestClient).to receive(:get).with("http://example.com/source_types/1/sources").and_return(source_types_1_sources_response)
@@ -97,7 +97,7 @@ describe TopologicalInventory::Orchestrator::Worker do
   end
 
   it "#each_resource" do
-    instance = described_class.new
+    instance = described_class.new("http://example.com")
 
     url_1 = "http://example.com/1"
     url_2 = "http://example.com/2"
