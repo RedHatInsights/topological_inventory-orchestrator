@@ -2,11 +2,13 @@ describe TopologicalInventory::Orchestrator::Worker do
   around do |e|
     ENV["TOPOLOGICAL_INVENTORY_API_SERVICE_HOST"] = "example.com"
     ENV["TOPOLOGICAL_INVENTORY_API_SERVICE_PORT"] = "8080"
+    ENV["IMAGE_NAMESPACE"] = "buildfactory"
 
     e.run
 
     ENV.delete("TOPOLOGICAL_INVENTORY_API_SERVICE_HOST")
     ENV.delete("TOPOLOGICAL_INVENTORY_API_SERVICE_PORT")
+    ENV.delete("IMAGE_NAMESPACE")
   end
 
   context "#collectors_from_database" do
@@ -89,12 +91,13 @@ describe TopologicalInventory::Orchestrator::Worker do
       instance.send(:collectors_from_database, db)
 
       expect(db).to eq(
-        "d40a4b2ff60d57a58e4144f5f5da9fd8ab30c141" => {
+        "09ff859d6a98e23d69968d1419bf8b25b910d3ee" => {
           "endpoint_host"   => "example.com",
           "endpoint_path"   => "/api",
           "endpoint_port"   => "8443",
           "endpoint_scheme" => "https",
-          "image"           => "buildfactory/topological-inventory-ci/topological-inventory-openshift:latest",
+          "image"           => "topological-inventory-openshift:latest",
+          "image_namespace" => "buildfactory",
           "source_id"       => "2",
           "source_uid"      => "31b5338b-685d-4056-ba39-d00b4d7f19cc",
           "secret"          => {

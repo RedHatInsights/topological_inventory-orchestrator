@@ -84,6 +84,7 @@ module TopologicalInventory
             "endpoint_port"   => endpoint["port"].to_s,
             "endpoint_scheme" => endpoint["scheme"],
             "image"           => collector_definition["image"],
+            "image_namespace" => collector_definition["image_namespace"] || ENV["IMAGE_NAMESPACE"],
             "source_id"       => source["id"],
             "source_uid"      => source["uid"],
             "secret"          => {
@@ -144,13 +145,12 @@ module TopologicalInventory
       def create_openshift_objects_for_source(digest, source)
         logger.info("Creating objects for source #{source["source_id"]} with digest #{digest}")
         object_manager.create_secret(collector_deployment_secret_name_for_source(source), source["secret"])
-        object_manager.create_deployment_config(collector_deployment_name_for_source(source)) do |d|
+        object_manager.create_deployment_config(collector_deployment_name_for_source(source), source["image_namespace"], source["image"]) do |d|
           d[:metadata][:labels]["topological-inventory/collector_digest"] = digest
           d[:metadata][:labels]["topological-inventory/collector"] = "true"
           d[:spec][:replicas] = 1
           container = d[:spec][:template][:spec][:containers].first
           container[:env] = collector_container_environment(source)
-          container[:image] = source["image"]
         end
       end
 

@@ -14,8 +14,8 @@ module TopologicalInventory
         connection.patch_deployment_config(deployment_config_name, { :spec => { :replicas => replicas } }, my_namespace)
       end
 
-      def create_deployment_config(name)
-        definition = deployment_config_definition(name)
+      def create_deployment_config(name, image_namespace, image)
+        definition = deployment_config_definition(name, image_namespace, image)
         yield(definition) if block_given?
         connection.create_deployment_config(definition)
       rescue KubeException => e
@@ -90,7 +90,7 @@ module TopologicalInventory
         )
       end
 
-      def deployment_config_definition(name)
+      def deployment_config_definition(name, image_namespace, image)
         {
           :metadata => {
             :name      => name,
@@ -104,9 +104,22 @@ module TopologicalInventory
               :spec     => {
                 :containers         => [{
                   :name          => name,
+                  :image         => "#{image_namespace}/#{image}"
                 }]
               }
-            }
+            },
+            :triggers => [{
+              :type              => "ImageChange",
+              :imageChangeParams => {
+                :automatic      => true,
+                :containerNames => [name],
+                :from           => {
+                  :kind      => "ImageStreamTag",
+                  :name      => image,
+                  :namespace => image_namespace
+                }
+              }
+            }]
           }
         }
       end

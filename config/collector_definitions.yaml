@@ -1,7 +1,8 @@
 # Layout of this file
 # <source_type>:
+#   image_namespace: <namespace> -- optional
 #   image: <image_ref>
 
 ---
 openshift:
-  image: "buildfactory/topological-inventory-ci/topological-inventory-openshift:latest"
+  image: "topological-inventory-openshift:latest"
