@@ -4,4 +4,4 @@
 
 ---
 openshift:
-  image: "buildfactory/topological-inventory-ci/topological-inventory-collector-openshift:latest"
+  image: "buildfactory/topological-inventory-ci/topological-inventory-openshift:latest"
