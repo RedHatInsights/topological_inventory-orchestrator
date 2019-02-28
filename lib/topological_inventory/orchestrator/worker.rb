@@ -81,7 +81,7 @@ module TopologicalInventory
           value = {
             "endpoint_host"   => endpoint["host"],
             "endpoint_path"   => endpoint["path"],
-            "endpoint_port"   => endpoint["port"],
+            "endpoint_port"   => endpoint["port"].to_s,
             "endpoint_scheme" => endpoint["scheme"],
             "image"           => collector_definition["image"],
             "source_id"       => source["id"],

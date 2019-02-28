@@ -89,10 +89,10 @@ describe TopologicalInventory::Orchestrator::Worker do
       instance.send(:collectors_from_database, db)
 
       expect(db).to eq(
-        "f3105d3cdbfcf1c7eb722303a1739955a76b363e" => {
+        "d40a4b2ff60d57a58e4144f5f5da9fd8ab30c141" => {
           "endpoint_host"   => "example.com",
           "endpoint_path"   => "/api",
-          "endpoint_port"   => 8443,
+          "endpoint_port"   => "8443",
           "endpoint_scheme" => "https",
           "image"           => "buildfactory/topological-inventory-ci/topological-inventory-openshift:latest",
           "source_id"       => "2",
