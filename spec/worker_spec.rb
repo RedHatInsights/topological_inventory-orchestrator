@@ -89,12 +89,12 @@ describe TopologicalInventory::Orchestrator::Worker do
       instance.send(:collectors_from_database, db)
 
       expect(db).to eq(
-        "f52ab314d4d6fbaed87261c4a72652bf7a65cf97" => {
+        "f3105d3cdbfcf1c7eb722303a1739955a76b363e" => {
           "endpoint_host"   => "example.com",
           "endpoint_path"   => "/api",
           "endpoint_port"   => 8443,
           "endpoint_scheme" => "https",
-          "image"           => "buildfactory/topological-inventory-ci/topological-inventory-collector-openshift:latest",
+          "image"           => "buildfactory/topological-inventory-ci/topological-inventory-openshift:latest",
           "source_id"       => "2",
           "source_uid"      => "31b5338b-685d-4056-ba39-d00b4d7f19cc",
           "secret"          => {
