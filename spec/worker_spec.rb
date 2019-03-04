@@ -36,6 +36,15 @@ describe TopologicalInventory::Orchestrator::Worker do
       EOJ
     end
 
+    let(:source_types_2_sources_response) do
+      <<~EOJ
+        {
+          "links": {},
+          "data": []
+        }
+      EOJ
+    end
+
     let(:sources_1_endpoints_response) { {"links" => {}, "data" => []}.to_json }
 
     let(:sources_2_endpoints_response) do
@@ -77,12 +86,12 @@ describe TopologicalInventory::Orchestrator::Worker do
 
       expect(RestClient).to receive(:get).with("http://example.com:8080/v0.1/source_types").and_return(source_types_response)
       expect(RestClient).to receive(:get).with("http://example.com:8080/v0.1/source_types/1/sources").and_return(source_types_1_sources_response)
+      expect(RestClient).to receive(:get).with("http://example.com:8080/v0.1/source_types/2/sources").and_return(source_types_2_sources_response)
       expect(RestClient).to receive(:get).with("http://example.com:8080/v0.1/sources/1/endpoints").and_return(sources_1_endpoints_response)
       expect(RestClient).to receive(:get).with("http://example.com:8080/v0.1/sources/2/endpoints").and_return(sources_2_endpoints_response)
       expect(RestClient).to receive(:get).with("http://example.com:8080/v0.1/authentications?resource_type=Endpoint&resource_id=1").and_return(endpoints_1_authentications_response)
       expect(RestClient).to receive(:get).with("http://example.com:8080/internal/v0.0/authentications/1?expose_encrypted_attribute[]=password").and_return({"username" => "USER", "password" => "PASS"}.to_json)
 
-      expect(RestClient).not_to receive(:get).with("http://example.com:8080/v0.1/source_types/2/sources")
       expect(RestClient).not_to receive(:get).with("http://example.com:8080/v0.1/authentications?resource_type=Endpoint&resource_id=8")
       expect(RestClient).not_to receive(:get).with("http://example.com:8080/v0.1/authentications?resource_type=Endpoint&resource_id=9")
       expect(RestClient).not_to receive(:get).with("http://example.com:8080/internal/v0.0/authentications/8?expose_encrypted_attribute[]=password")

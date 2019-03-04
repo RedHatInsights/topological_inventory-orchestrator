@@ -6,3 +6,5 @@
 ---
 openshift:
   image: "topological-inventory-openshift:latest"
+amazon:
+  image: "topological-inventory-amazon-collector:latest"
