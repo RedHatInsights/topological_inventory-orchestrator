@@ -104,7 +104,17 @@ module TopologicalInventory
               :spec     => {
                 :containers         => [{
                   :name          => name,
-                  :image         => "#{image_namespace}/#{image}"
+                  :image         => "#{image_namespace}/#{image}",
+                  :resources     => {
+                    :limits   => {
+                      :cpu    => "200m",
+                      :memory => "400Mi"
+                    },
+                    :requests => {
+                      :cpu    => "100m",
+                      :memory => "200Mi"
+                    }
+                  }
                 }]
               }
             },
