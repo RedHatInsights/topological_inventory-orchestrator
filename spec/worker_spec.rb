@@ -20,17 +20,17 @@ describe TopologicalInventory::Orchestrator::Worker do
     {"x-rh-identity" => "eyJpZGVudGl0eSI6eyJhY2NvdW50X251bWJlciI6IjEyMzQ1In19"}
   end
 
-  before { allow(RestClient).to receive(:get).with("http://example.com:8080/internal/v0.0/tenants", orchestrator_tenant_header).and_return(tenants_response) }
+  before { allow(RestClient).to receive(:get).with("http://example.com:8080/internal/v0.1/tenants", orchestrator_tenant_header).and_return(tenants_response) }
 
   around do |e|
-    ENV["TOPOLOGICAL_INVENTORY_API_SERVICE_HOST"] = "example.com"
-    ENV["TOPOLOGICAL_INVENTORY_API_SERVICE_PORT"] = "8080"
+    ENV["SOURCES_HOST"] = "example.com"
+    ENV["SOURCES_PORT"] = "8080"
     ENV["IMAGE_NAMESPACE"] = "buildfactory"
 
     e.run
 
-    ENV.delete("TOPOLOGICAL_INVENTORY_API_SERVICE_HOST")
-    ENV.delete("TOPOLOGICAL_INVENTORY_API_SERVICE_PORT")
+    ENV.delete("SOURCES_HOST")
+    ENV.delete("SOURCES_PORT")
     ENV.delete("IMAGE_NAMESPACE")
   end
 
@@ -112,12 +112,12 @@ describe TopologicalInventory::Orchestrator::Worker do
       stub_rest_get("http://example.com:8080/v0.1/sources/1/endpoints", user_tenant_header, sources_1_endpoints_response)
       stub_rest_get("http://example.com:8080/v0.1/sources/2/endpoints", user_tenant_header, sources_2_endpoints_response)
       stub_rest_get("http://example.com:8080/v0.1/authentications?resource_type=Endpoint&resource_id=1", user_tenant_header, endpoints_1_authentications_response)
-      stub_rest_get("http://example.com:8080/internal/v0.0/authentications/1?expose_encrypted_attribute[]=password", user_tenant_header, {"username" => "USER", "password" => "PASS"}.to_json)
+      stub_rest_get("http://example.com:8080/internal/v0.1/authentications/1?expose_encrypted_attribute[]=password", user_tenant_header, {"username" => "USER", "password" => "PASS"}.to_json)
 
       expect(RestClient).not_to receive(:get).with("http://example.com:8080/v0.1/authentications?resource_type=Endpoint&resource_id=8", any_args)
       expect(RestClient).not_to receive(:get).with("http://example.com:8080/v0.1/authentications?resource_type=Endpoint&resource_id=9", any_args)
-      expect(RestClient).not_to receive(:get).with("http://example.com:8080/internal/v0.0/authentications/8?expose_encrypted_attribute[]=password", any_args)
-      expect(RestClient).not_to receive(:get).with("http://example.com:8080/internal/v0.0/authentications/9?expose_encrypted_attribute[]=password", any_args)
+      expect(RestClient).not_to receive(:get).with("http://example.com:8080/internal/v0.1/authentications/8?expose_encrypted_attribute[]=password", any_args)
+      expect(RestClient).not_to receive(:get).with("http://example.com:8080/internal/v0.1/authentications/9?expose_encrypted_attribute[]=password", any_args)
 
       collector_hash = instance.send(:collectors_from_sources_api)
 
@@ -141,12 +141,12 @@ describe TopologicalInventory::Orchestrator::Worker do
   end
 
   describe "#internal_url_for" do
-    it "replaces the path with /internal/v0.0/<path>" do
-      expect(described_class.new.send(:internal_url_for, "the/best/path")).to eq("http://example.com:8080/internal/v0.0/the/best/path")
+    it "replaces the path with /internal/v0.1/<path>" do
+      expect(described_class.new.send(:internal_url_for, "the/best/path")).to eq("http://example.com:8080/internal/v0.1/the/best/path")
     end
 
     it "adds the passed query" do
-      expect(described_class.new.send(:internal_url_for, "the/path", "query=param")).to eq("http://example.com:8080/internal/v0.0/the/path?query=param")
+      expect(described_class.new.send(:internal_url_for, "the/path", "query=param")).to eq("http://example.com:8080/internal/v0.1/the/path?query=param")
     end
   end
 

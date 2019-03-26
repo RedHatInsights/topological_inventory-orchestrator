@@ -38,8 +38,8 @@ module TopologicalInventory
           require "uri"
 
           URI::HTTP.build(
-            :host => ENV["TOPOLOGICAL_INVENTORY_API_SERVICE_HOST"],
-            :port => ENV["TOPOLOGICAL_INVENTORY_API_SERVICE_PORT"],
+            :host => ENV["SOURCES_HOST"],
+            :port => ENV["SOURCES_PORT"],
             :path => path
           ).to_s
         end
@@ -106,7 +106,7 @@ module TopologicalInventory
 
       def internal_url_for(path, query = nil)
         URI.parse(api_base_url).tap do |uri|
-          uri.path = File.join("/internal/v0.0/", path)
+          uri.path = File.join("/internal/v0.1/", path)
           uri.query = query if query
         end.to_s
       end
