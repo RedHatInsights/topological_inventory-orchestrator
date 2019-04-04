@@ -2,6 +2,7 @@ require "base64"
 require "json"
 require "manageiq-loggers"
 require "manageiq-password"
+require "more_core_extensions/core_ext/hash"
 require "rest-client"
 require "yaml"
 
@@ -122,7 +123,7 @@ module TopologicalInventory
         resources = paging ? response["data"] : response
         resources.each { |i| yield i }
 
-        each_resource(response["links"]["next"], tenant_account, &block) if paging
+        each_resource(response.fetch_path("links", "next"), tenant_account, &block) if paging
       end
 
       def get_and_parse(url, tenant_account = ORCHESTRATOR_TENANT)
