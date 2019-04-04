@@ -117,6 +117,16 @@ describe TopologicalInventory::Orchestrator::Worker do
     end
   end
 
+  describe "#internal_url_for" do
+    it "replaces the path with /internal/v0.0/<path>" do
+      expect(described_class.new.send(:internal_url_for, "the/best/path")).to eq("http://example.com:8080/internal/v0.0/the/best/path")
+    end
+
+    it "adds the passed query" do
+      expect(described_class.new.send(:internal_url_for, "the/path", "query=param")).to eq("http://example.com:8080/internal/v0.0/the/path?query=param")
+    end
+  end
+
   it "#each_resource" do
     instance = described_class.new
 

@@ -100,6 +100,13 @@ module TopologicalInventory
         hash
       end
 
+      def internal_url_for(path, query = nil)
+        URI.parse(api_base_url).tap do |uri|
+          uri.path = File.join("/internal/v0.0/", path)
+          uri.query = query if query
+        end.to_s
+      end
+
       def url_for(path)
         File.join(api_base_url, path)
       end
@@ -122,11 +129,7 @@ module TopologicalInventory
 
       # HACK for Authentications
       def authentication_with_password(id)
-        url = URI.parse(api_base_url).tap do |uri|
-          uri.path = "/internal/v0.0/authentications/#{id}"
-          uri.query = "expose_encrypted_attribute[]=password"
-        end.to_s
-        get_and_parse(url.to_s)
+        get_and_parse(internal_url_for("/authentications/#{id}", "expose_encrypted_attribute[]=password"))
       end
 
 
