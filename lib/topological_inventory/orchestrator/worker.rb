@@ -74,7 +74,8 @@ module TopologicalInventory
             each_resource(url_for("source_types/#{source_type["id"]}/sources"), tenant) do |source|
               next unless endpoint = get_and_parse(url_for("sources/#{source["id"]}/endpoints"), tenant)["data"].first
               next unless authentication = get_and_parse(url_for("authentications?resource_type=Endpoint&resource_id=#{endpoint["id"]}"), tenant)["data"].first
-              yield source, endpoint, authentication, collector_definition
+              auth = authentication_with_password(authentication["id"], tenant)
+              yield source, endpoint, auth, collector_definition
             end
           end
         end
@@ -83,7 +84,6 @@ module TopologicalInventory
       def collectors_from_sources_api
         hash = {}
         each_source do |source, endpoint, authentication, collector_definition|
-          auth = authentication_with_password(authentication["id"])
           value = {
             "endpoint_host"   => endpoint["host"],
             "endpoint_path"   => endpoint["path"],
@@ -94,8 +94,8 @@ module TopologicalInventory
             "source_id"       => source["id"],
             "source_uid"      => source["uid"],
             "secret"          => {
-              "password" => auth["password"],
-              "username" => auth["username"],
+              "password" => authentication["password"],
+              "username" => authentication["username"],
             },
           }
           key = digest(value)
@@ -142,8 +142,8 @@ module TopologicalInventory
       end
 
       # HACK for Authentications
-      def authentication_with_password(id)
-        get_and_parse(internal_url_for("/authentications/#{id}", "expose_encrypted_attribute[]=password"))
+      def authentication_with_password(id, tenant_account)
+        get_and_parse(internal_url_for("/authentications/#{id}", "expose_encrypted_attribute[]=password"), tenant_account)
       end
 
 

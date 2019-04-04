@@ -112,7 +112,7 @@ describe TopologicalInventory::Orchestrator::Worker do
       stub_rest_get("http://example.com:8080/v0.1/sources/1/endpoints", user_tenant_header, sources_1_endpoints_response)
       stub_rest_get("http://example.com:8080/v0.1/sources/2/endpoints", user_tenant_header, sources_2_endpoints_response)
       stub_rest_get("http://example.com:8080/v0.1/authentications?resource_type=Endpoint&resource_id=1", user_tenant_header, endpoints_1_authentications_response)
-      stub_rest_get("http://example.com:8080/internal/v0.0/authentications/1?expose_encrypted_attribute[]=password", orchestrator_tenant_header, {"username" => "USER", "password" => "PASS"}.to_json)
+      stub_rest_get("http://example.com:8080/internal/v0.0/authentications/1?expose_encrypted_attribute[]=password", user_tenant_header, {"username" => "USER", "password" => "PASS"}.to_json)
 
       expect(RestClient).not_to receive(:get).with("http://example.com:8080/v0.1/authentications?resource_type=Endpoint&resource_id=8", any_args)
       expect(RestClient).not_to receive(:get).with("http://example.com:8080/v0.1/authentications?resource_type=Endpoint&resource_id=9", any_args)
