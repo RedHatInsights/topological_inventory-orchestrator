@@ -48,14 +48,15 @@ module TopologicalInventory
       end
 
       def make_openshift_match_database
-        hash = {}
-        expected = collectors_from_sources_api(hash)
-        current  = collectors_from_openshift
+        collector_hash = collectors_from_sources_api
+
+        expected_digests = collector_hash.keys
+        current_digests  = collector_digests_from_openshift
 
         logger.info("Checking...")
 
-        (current - expected).each { |i| remove_openshift_objects_for_source(i) }
-        (expected - current).each { |i| create_openshift_objects_for_source(i, hash[i]) }
+        (current_digests - expected_digests).each { |i| remove_openshift_objects_for_source(i) }
+        (expected_digests - current_digests).each { |i| create_openshift_objects_for_source(i, collector_hash[i]) }
 
         logger.info("Checking... complete.")
       end
@@ -75,8 +76,9 @@ module TopologicalInventory
         end
       end
 
-      def collectors_from_sources_api(hash)
-        each_source.collect do |source, endpoint, authentication, collector_definition|
+      def collectors_from_sources_api
+        hash = {}
+        each_source do |source, endpoint, authentication, collector_definition|
           auth = authentication_with_password(authentication["id"])
           value = {
             "endpoint_host"   => endpoint["host"],
@@ -94,8 +96,8 @@ module TopologicalInventory
           }
           key = digest(value)
           hash[key] = value
-          key
         end
+        hash
       end
 
       def url_for(path)
@@ -138,7 +140,7 @@ module TopologicalInventory
 
 
       ### Openshift stuff
-      def collectors_from_openshift
+      def collector_digests_from_openshift
         object_manager.get_deployment_configs("topological-inventory/collector=true").collect { |i| i.metadata.labels["topological-inventory/collector_digest"] }
       end
 
