@@ -11,7 +11,7 @@ describe TopologicalInventory::Orchestrator::Worker do
   end
 
   let(:orchestrator_tenant_header) do
-    {"x-rh-identity" => "eyJpZGVudGl0eSI6eyJhY2NvdW50X251bWJlciI6InN5c3RlbV9vcmNoZXN0\ncmF0b3IifX0="}
+    {"x-rh-identity" => "eyJpZGVudGl0eSI6eyJhY2NvdW50X251bWJlciI6InN5c3RlbV9vcmNoZXN0cmF0b3IifX0="}
   end
 
   let(:user_tenant_account) { "12345" }

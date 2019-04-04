@@ -130,9 +130,9 @@ module TopologicalInventory
         JSON.parse(
           RestClient.get(
             url,
-            "x-rh-identity" => Base64.encode64(
+            "x-rh-identity" => Base64.strict_encode64(
               {"identity" => {"account_number" => tenant_account}}.to_json
-            ).strip
+            )
           )
         )
       end
