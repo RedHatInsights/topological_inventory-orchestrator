@@ -11,7 +11,7 @@ describe TopologicalInventory::Orchestrator::Worker do
     ENV.delete("IMAGE_NAMESPACE")
   end
 
-  context "#collectors_from_database" do
+  context "#collectors_from_sources_api" do
     let(:source_types_response) do
       <<~EOJ
         {
@@ -81,7 +81,6 @@ describe TopologicalInventory::Orchestrator::Worker do
     end
 
     it "generates the expected hash" do
-      db = {}
       instance = described_class.new
 
       expect(RestClient).to receive(:get).with("http://example.com:8080/v0.1/source_types").and_return(source_types_response)
@@ -97,9 +96,9 @@ describe TopologicalInventory::Orchestrator::Worker do
       expect(RestClient).not_to receive(:get).with("http://example.com:8080/internal/v0.0/authentications/8?expose_encrypted_attribute[]=password")
       expect(RestClient).not_to receive(:get).with("http://example.com:8080/internal/v0.0/authentications/9?expose_encrypted_attribute[]=password")
 
-      instance.send(:collectors_from_database, db)
+      collector_hash = instance.send(:collectors_from_sources_api)
 
-      expect(db).to eq(
+      expect(collector_hash).to eq(
         "09ff859d6a98e23d69968d1419bf8b25b910d3ee" => {
           "endpoint_host"   => "example.com",
           "endpoint_path"   => "/api",
