@@ -107,8 +107,12 @@ module TopologicalInventory
       def each_resource(url, &block)
         return if url.nil?
         response = get_and_parse(url)
-        response["data"].each { |i| yield i }
-        each_resource(response["links"]["next"], &block)
+        paging = response.is_a?(Hash)
+
+        resources = paging ? response["data"] : response
+        resources.each { |i| yield i }
+
+        each_resource(response["links"]["next"], &block) if paging
       end
 
       def get_and_parse(url)
