@@ -1,6 +1,8 @@
+require "base64"
 require "json"
 require "manageiq-loggers"
 require "manageiq-password"
+require "more_core_extensions/core_ext/hash"
 require "rest-client"
 require "yaml"
 
@@ -10,6 +12,7 @@ module TopologicalInventory
   module Orchestrator
     class Worker
       API_VERSION = "v0.1".freeze
+      ORCHESTRATOR_TENANT = "system_orchestrator".freeze
 
       attr_reader :logger
 
@@ -64,14 +67,15 @@ module TopologicalInventory
 
       ### API STUFF
       def each_source
-        return enum_for(:each_source) unless block_given?
-        each_resource(url_for("source_types")) do |source_type|
-          collector_definition = collector_definitions[source_type["name"]]
-          next if collector_definition.nil?
-          each_resource(url_for("source_types/#{source_type["id"]}/sources")) do |source|
-            next unless endpoint = get_and_parse(url_for("sources/#{source["id"]}/endpoints"))["data"].first
-            next unless authentication = get_and_parse(url_for("authentications?resource_type=Endpoint&resource_id=#{endpoint["id"]}"))["data"].first
-            yield source, endpoint, authentication, collector_definition
+        each_tenant do |tenant|
+          each_resource(url_for("source_types"), tenant) do |source_type|
+            collector_definition = collector_definitions[source_type["name"]]
+            next if collector_definition.nil?
+            each_resource(url_for("source_types/#{source_type["id"]}/sources"), tenant) do |source|
+              next unless endpoint = get_and_parse(url_for("sources/#{source["id"]}/endpoints"), tenant)["data"].first
+              next unless authentication = get_and_parse(url_for("authentications?resource_type=Endpoint&resource_id=#{endpoint["id"]}"), tenant)["data"].first
+              yield source, endpoint, authentication, collector_definition
+            end
           end
         end
       end
@@ -100,29 +104,46 @@ module TopologicalInventory
         hash
       end
 
+      def internal_url_for(path, query = nil)
+        URI.parse(api_base_url).tap do |uri|
+          uri.path = File.join("/internal/v0.0/", path)
+          uri.query = query if query
+        end.to_s
+      end
+
       def url_for(path)
         File.join(api_base_url, path)
       end
 
-      def each_resource(url, &block)
+      def each_resource(url, tenant_account = ORCHESTRATOR_TENANT, &block)
         return if url.nil?
-        response = get_and_parse(url)
-        response["data"].each { |i| yield i }
-        each_resource(response["links"]["next"], &block)
+        response = get_and_parse(url, tenant_account)
+        paging = response.is_a?(Hash)
+
+        resources = paging ? response["data"] : response
+        resources.each { |i| yield i }
+
+        each_resource(response.fetch_path("links", "next"), tenant_account, &block) if paging
       end
 
-      def get_and_parse(url)
-        JSON.parse(RestClient.get(url))
+      def get_and_parse(url, tenant_account = ORCHESTRATOR_TENANT)
+        JSON.parse(
+          RestClient.get(
+            url,
+            "x-rh-identity" => Base64.encode64(
+              {"identity" => {"account_number" => tenant_account}}.to_json
+            ).strip
+          )
+        )
       end
 
+      def each_tenant
+        each_resource(internal_url_for("tenants")) { |tenant| yield tenant["external_tenant"] }
+      end
 
       # HACK for Authentications
       def authentication_with_password(id)
-        url = URI.parse(api_base_url).tap do |uri|
-          uri.path = "/internal/v0.0/authentications/#{id}"
-          uri.query = "expose_encrypted_attribute[]=password"
-        end.to_s
-        get_and_parse(url.to_s)
+        get_and_parse(internal_url_for("/authentications/#{id}", "expose_encrypted_attribute[]=password"))
       end
 
 
