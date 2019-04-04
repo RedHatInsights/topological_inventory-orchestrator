@@ -49,7 +49,7 @@ module TopologicalInventory
 
       def make_openshift_match_database
         hash = {}
-        expected = collectors_from_database(hash)
+        expected = collectors_from_sources_api(hash)
         current  = collectors_from_openshift
 
         logger.info("Checking...")
@@ -75,7 +75,7 @@ module TopologicalInventory
         end
       end
 
-      def collectors_from_database(hash)
+      def collectors_from_sources_api(hash)
         each_source.collect do |source, endpoint, authentication, collector_definition|
           auth = authentication_with_password(authentication["id"])
           value = {
