@@ -11,14 +11,18 @@ require "topological_inventory/orchestrator/object_manager"
 module TopologicalInventory
   module Orchestrator
     class Worker
-      API_VERSION = "v0.1".freeze
+      TOPOLOGY_API_VERSION = "v0.1".freeze
+      SOURCES_API_VERSION = "v1.0".freeze
       ORCHESTRATOR_TENANT = "system_orchestrator".freeze
 
-      attr_reader :logger
+      attr_reader :logger, :sources_url, :topology_url
 
-      def initialize(collector_definitions_file = ENV["COLLECTOR_DEFINITIONS_FILE"])
+      def initialize(sources_url:, topology_url:, collector_definitions_file: ENV["COLLECTOR_DEFINITIONS_FILE"])
         @collector_definitions_file = collector_definitions_file || TopologicalInventory::Orchestrator.root.join("config/collector_definitions.yaml")
-        @logger = ManageIQ::Loggers::Container.new
+
+        @logger       = ManageIQ::Loggers::Container.new
+        @sources_url  = sources_url
+        @topology_url = topology_url
       end
 
       def run
@@ -30,20 +34,6 @@ module TopologicalInventory
       end
 
       private
-
-      def api_base_url
-        @api_base_url ||= begin
-          path = File.join("/", ENV["PATH_PREFIX"].to_s, ENV["APP_NAME"].to_s, API_VERSION)
-
-          require "uri"
-
-          URI::HTTP.build(
-            :host => ENV["SOURCES_HOST"],
-            :port => ENV["SOURCES_PORT"],
-            :path => path
-          ).to_s
-        end
-      end
 
       def digest(object)
         require 'digest'
@@ -67,16 +57,21 @@ module TopologicalInventory
 
       ### API STUFF
       def each_source
+        source_types_by_id = {}
+        each_resource(sources_api_url_for("source_types")) { |source_type| source_types_by_id[source_type["id"]] = source_type }
+
         each_tenant do |tenant|
-          each_resource(url_for("source_types"), tenant) do |source_type|
-            collector_definition = collector_definitions[source_type["name"]]
-            next if collector_definition.nil?
-            each_resource(url_for("source_types/#{source_type["id"]}/sources"), tenant) do |source|
-              next unless endpoint = get_and_parse(url_for("sources/#{source["id"]}/endpoints"), tenant)["data"].first
-              next unless authentication = get_and_parse(url_for("authentications?resource_type=Endpoint&resource_id=#{endpoint["id"]}"), tenant)["data"].first
-              auth = authentication_with_password(authentication["id"], tenant)
-              yield source, endpoint, auth, collector_definition
-            end
+          each_resource(topology_api_url_for("sources"), tenant) do |source_stub|
+            source      = get_and_parse(sources_api_url_for("sources/#{source_stub["id"]}"), tenant)
+            source_type = source_types_by_id[source["source_type_id"]]
+
+            next unless collector_definition = collector_definitions[source_type["name"]]
+
+            next unless endpoint       = get_and_parse(sources_api_url_for("sources/#{source["id"]}/endpoints"), tenant)["data"].first
+            next unless authentication = get_and_parse(sources_api_url_for("endpoints/#{endpoint["id"]}/authentications"), tenant)["data"].first
+
+            auth = authentication_with_password(authentication["id"], tenant)
+            yield source, endpoint, auth, collector_definition
           end
         end
       end
@@ -104,15 +99,20 @@ module TopologicalInventory
         hash
       end
 
-      def internal_url_for(path, query = nil)
-        URI.parse(api_base_url).tap do |uri|
-          uri.path = File.join("/internal/v0.1/", path)
-          uri.query = query if query
-        end.to_s
+      def sources_api_url_for(path)
+        File.join(sources_url, ENV["PATH_PREFIX"].to_s, ENV["APP_NAME"].to_s, SOURCES_API_VERSION, path)
       end
 
-      def url_for(path)
-        File.join(api_base_url, path)
+      def sources_internal_url_for(path)
+        File.join(sources_url, "internal", "v1.0", path)
+      end
+
+      def topology_api_url_for(path)
+        File.join(topology_url, ENV["PATH_PREFIX"].to_s, ENV["APP_NAME"].to_s, TOPOLOGY_API_VERSION, path)
+      end
+
+      def topology_internal_url_for(path)
+        File.join(topology_url, "internal", "v0.0", path)
       end
 
       def each_resource(url, tenant_account = ORCHESTRATOR_TENANT, &block)
@@ -138,12 +138,12 @@ module TopologicalInventory
       end
 
       def each_tenant
-        each_resource(internal_url_for("tenants")) { |tenant| yield tenant["external_tenant"] }
+        each_resource(topology_internal_url_for("tenants")) { |tenant| yield tenant["external_tenant"] }
       end
 
       # HACK for Authentications
       def authentication_with_password(id, tenant_account)
-        get_and_parse(internal_url_for("/authentications/#{id}", "expose_encrypted_attribute[]=password"), tenant_account)
+        get_and_parse(sources_internal_url_for("/authentications/#{id}?expose_encrypted_attribute[]=password"), tenant_account)
       end
 
 
