@@ -20,19 +20,16 @@ describe TopologicalInventory::Orchestrator::Worker do
     {"x-rh-identity" => "eyJpZGVudGl0eSI6eyJhY2NvdW50X251bWJlciI6IjEyMzQ1In19"}
   end
 
-  before { allow(RestClient).to receive(:get).with("http://example.com:8080/internal/v0.0/tenants", orchestrator_tenant_header).and_return(tenants_response) }
-
   around do |e|
-    ENV["TOPOLOGICAL_INVENTORY_API_SERVICE_HOST"] = "example.com"
-    ENV["TOPOLOGICAL_INVENTORY_API_SERVICE_PORT"] = "8080"
     ENV["IMAGE_NAMESPACE"] = "buildfactory"
-
     e.run
-
-    ENV.delete("TOPOLOGICAL_INVENTORY_API_SERVICE_HOST")
-    ENV.delete("TOPOLOGICAL_INVENTORY_API_SERVICE_PORT")
     ENV.delete("IMAGE_NAMESPACE")
   end
+
+  subject { described_class.new(sources_api: sources_api, topology_api: topology_api) }
+
+  let(:sources_api)  { "http://sources.local:8080/api/sources/v1.0" }
+  let(:topology_api) { "http://topology.local:8080/api/topological-inventory/v0.1" }
 
   context "#collectors_from_sources_api" do
     let(:source_types_response) do
@@ -47,23 +44,30 @@ describe TopologicalInventory::Orchestrator::Worker do
       EOJ
     end
 
-    let(:source_types_1_sources_response) do
+    let(:topology_sources_response) do
       <<~EOJ
         {
           "links": {},
           "data": [
-            {"id":"1","source_type_id":"1","name":"mock-source","uid":"cacebc33-1ed8-49d4-b4f9-713f2552ee65","tenant_id":"1"},
-            {"id":"2","source_type_id":"1","name":"OCP","uid":"31b5338b-685d-4056-ba39-d00b4d7f19cc","tenant_id":"1"}
+            {"id":"1","uid":"cacebc33-1ed8-49d4-b4f9-713f2552ee65","tenant_id":"1"},
+            {"id":"2","uid":"31b5338b-685d-4056-ba39-d00b4d7f19cc","tenant_id":"1"}
           ]
         }
       EOJ
     end
 
-    let(:source_types_2_sources_response) do
+    let(:sources_1_response) do
       <<~EOJ
         {
-          "links": {},
-          "data": []
+          "id":"1","source_type_id":"1","name":"mock-source","uid":"cacebc33-1ed8-49d4-b4f9-713f2552ee65","tenant":"#{user_tenant_account}"
+        }
+      EOJ
+    end
+
+    let(:sources_2_response) do
+      <<~EOJ
+        {
+          "id":"2","source_type_id":"1","name":"OCP","uid":"31b5338b-685d-4056-ba39-d00b4d7f19cc","tenant":"#{user_tenant_account}"
         }
       EOJ
     end
@@ -104,22 +108,22 @@ describe TopologicalInventory::Orchestrator::Worker do
     end
 
     it "generates the expected hash" do
-      instance = described_class.new
+      stub_rest_get("#{sources_api}/source_types", orchestrator_tenant_header, source_types_response)
+      stub_rest_get("http://topology.local:8080/internal/v0.0/tenants", orchestrator_tenant_header, tenants_response)
+      stub_rest_get("#{topology_api}/sources", user_tenant_header, topology_sources_response)
+      stub_rest_get("#{sources_api}/sources/1", user_tenant_header, sources_1_response)
+      stub_rest_get("#{sources_api}/sources/1/endpoints", user_tenant_header, sources_1_endpoints_response)
+      stub_rest_get("#{sources_api}/sources/2", user_tenant_header, sources_2_response)
+      stub_rest_get("#{sources_api}/sources/2/endpoints", user_tenant_header, sources_2_endpoints_response)
+      stub_rest_get("#{sources_api}/endpoints/1/authentications", user_tenant_header, endpoints_1_authentications_response)
+      stub_rest_get("http://sources.local:8080/internal/v1.0/authentications/1?expose_encrypted_attribute[]=password", user_tenant_header, {"username" => "USER", "password" => "PASS"}.to_json)
 
-      stub_rest_get("http://example.com:8080/v0.1/source_types", user_tenant_header, source_types_response)
-      stub_rest_get("http://example.com:8080/v0.1/source_types/1/sources", user_tenant_header, source_types_1_sources_response)
-      stub_rest_get("http://example.com:8080/v0.1/source_types/2/sources", user_tenant_header, source_types_2_sources_response)
-      stub_rest_get("http://example.com:8080/v0.1/sources/1/endpoints", user_tenant_header, sources_1_endpoints_response)
-      stub_rest_get("http://example.com:8080/v0.1/sources/2/endpoints", user_tenant_header, sources_2_endpoints_response)
-      stub_rest_get("http://example.com:8080/v0.1/authentications?resource_type=Endpoint&resource_id=1", user_tenant_header, endpoints_1_authentications_response)
-      stub_rest_get("http://example.com:8080/internal/v0.0/authentications/1?expose_encrypted_attribute[]=password", user_tenant_header, {"username" => "USER", "password" => "PASS"}.to_json)
+      expect(RestClient).not_to receive(:get).with("#{sources_api}/endpoints/8/authentications", any_args)
+      expect(RestClient).not_to receive(:get).with("#{sources_api}/endpoints/9/authentications", any_args)
+      expect(RestClient).not_to receive(:get).with("http://sources.local:8080/internal/v1.0/authentications/8?expose_encrypted_attribute[]=password", any_args)
+      expect(RestClient).not_to receive(:get).with("http://sources.local:8080/internal/v1.0/authentications/9?expose_encrypted_attribute[]=password", any_args)
 
-      expect(RestClient).not_to receive(:get).with("http://example.com:8080/v0.1/authentications?resource_type=Endpoint&resource_id=8", any_args)
-      expect(RestClient).not_to receive(:get).with("http://example.com:8080/v0.1/authentications?resource_type=Endpoint&resource_id=9", any_args)
-      expect(RestClient).not_to receive(:get).with("http://example.com:8080/internal/v0.0/authentications/8?expose_encrypted_attribute[]=password", any_args)
-      expect(RestClient).not_to receive(:get).with("http://example.com:8080/internal/v0.0/authentications/9?expose_encrypted_attribute[]=password", any_args)
-
-      collector_hash = instance.send(:collectors_from_sources_api)
+      collector_hash = subject.send(:collectors_from_sources_api)
 
       expect(collector_hash).to eq(
         "09ff859d6a98e23d69968d1419bf8b25b910d3ee" => {
@@ -141,12 +145,8 @@ describe TopologicalInventory::Orchestrator::Worker do
   end
 
   describe "#internal_url_for" do
-    it "replaces the path with /internal/v0.0/<path>" do
-      expect(described_class.new.send(:internal_url_for, "the/best/path")).to eq("http://example.com:8080/internal/v0.0/the/best/path")
-    end
-
-    it "adds the passed query" do
-      expect(described_class.new.send(:internal_url_for, "the/path", "query=param")).to eq("http://example.com:8080/internal/v0.0/the/path?query=param")
+    it "replaces the path with /internal/v0.1/<path>" do
+      expect(subject.send(:topology_internal_url_for, "the/best/path")).to eq("http://topology.local:8080/internal/v0.0/the/best/path")
     end
   end
 
@@ -163,7 +163,7 @@ describe TopologicalInventory::Orchestrator::Worker do
       stub_rest_get(url_2, user_tenant_header, response_2)
       stub_rest_get(url_3, user_tenant_header, response_3)
 
-      expect { |b| described_class.new.send(:each_resource, url_1, user_tenant_account, &b) }.to yield_successive_args(1, 2, 3, 4, 5, 6, 7, 8)
+      expect { |b| subject.send(:each_resource, url_1, user_tenant_account, &b) }.to yield_successive_args(1, 2, 3, 4, 5, 6, 7, 8)
     end
 
     it "works with non-paginated responses" do
@@ -171,38 +171,7 @@ describe TopologicalInventory::Orchestrator::Worker do
       response = [1, 2, 3, 4, 5, 6, 7, 8].to_json
 
       stub_rest_get(url, user_tenant_header, response)
-      expect { |b| described_class.new.send(:each_resource, url, user_tenant_account, &b) }.to yield_successive_args(1, 2, 3, 4, 5, 6, 7, 8)
-    end
-  end
-
-  describe "#api_base_url (private)" do
-    let(:url) { subject.send(:api_base_url) }
-
-    it "returns a sane value" do
-      expect(url).to eq("http://example.com:8080/v0.1")
-    end
-
-    context "with APP_NAME set" do
-      around do |e|
-        ENV["APP_NAME"] = "topological-inventory"
-        e.run
-        ENV.delete("APP_NAME")
-        ENV.delete("PATH_PREFIX")
-      end
-
-      it "includes the APP_NAME" do
-        expect(url).to eq("http://example.com:8080/topological-inventory/v0.1")
-      end
-
-      it "uses the PATH_PREFIX with a leading slash" do
-        ENV["PATH_PREFIX"] = "/this/is/a/path"
-        expect(url).to eq("http://example.com:8080/this/is/a/path/topological-inventory/v0.1")
-      end
-
-      it "uses the PATH_PREFIX without a leading slash" do
-        ENV["PATH_PREFIX"] = "also/a/path"
-        expect(url).to eq("http://example.com:8080/also/a/path/topological-inventory/v0.1")
-      end
+      expect { |b| subject.send(:each_resource, url, user_tenant_account, &b) }.to yield_successive_args(1, 2, 3, 4, 5, 6, 7, 8)
     end
   end
 

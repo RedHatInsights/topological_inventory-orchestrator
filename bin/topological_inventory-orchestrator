@@ -6,7 +6,20 @@ require "bundler/setup"
 
 $:.push File.expand_path("../../lib", __FILE__)
 
+def parse_args
+  require 'optimist'
+  opts = Optimist.options do
+    opt :sources_api, "URL to the sources service, e.g. http://localhost:3000/api/v1.0", :type => :string,
+        :default => ENV["SOURCES_API"], :required => ENV["SOURCES_API"].nil?
+    opt :topology_api, "URL to the topological inventory service, e.g. http://localhost:4000/api/v0.1", :type => :string,
+        :default => ENV["TOPOLOGICAL_INVENTORY_API"], :required => ENV["TOPOLOGICAL_INVENTORY_API"].nil?
+  end
+
+  opts
+end
+
 require "topological_inventory-orchestrator"
 
-w = TopologicalInventory::Orchestrator::Worker.new
+args = parse_args
+w = TopologicalInventory::Orchestrator::Worker.new(sources_api: args[:sources_api], topology_api: args[:topology_api])
 w.run
