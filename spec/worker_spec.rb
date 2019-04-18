@@ -23,16 +23,15 @@ describe TopologicalInventory::Orchestrator::Worker do
   before { allow(RestClient).to receive(:get).with("http://example.com:8080/internal/v0.1/tenants", orchestrator_tenant_header).and_return(tenants_response) }
 
   around do |e|
-    ENV["SOURCES_HOST"] = "example.com"
-    ENV["SOURCES_PORT"] = "8080"
     ENV["IMAGE_NAMESPACE"] = "buildfactory"
-
     e.run
-
-    ENV.delete("SOURCES_HOST")
-    ENV.delete("SOURCES_PORT")
     ENV.delete("IMAGE_NAMESPACE")
   end
+
+  subject { described_class.new(sources_url: sources_url, topology_url: topology_url) }
+
+  let(:sources_url)  { "http://example.com:8080" }
+  let(:topology_url) { "http://example.com:8080" }
 
   context "#collectors_from_sources_api" do
     let(:source_types_response) do
@@ -104,7 +103,7 @@ describe TopologicalInventory::Orchestrator::Worker do
     end
 
     it "generates the expected hash" do
-      instance = described_class.new
+      instance = subject
 
       stub_rest_get("http://example.com:8080/v0.1/source_types", user_tenant_header, source_types_response)
       stub_rest_get("http://example.com:8080/v0.1/source_types/1/sources", user_tenant_header, source_types_1_sources_response)
@@ -142,11 +141,7 @@ describe TopologicalInventory::Orchestrator::Worker do
 
   describe "#internal_url_for" do
     it "replaces the path with /internal/v0.1/<path>" do
-      expect(described_class.new.send(:internal_url_for, "the/best/path")).to eq("http://example.com:8080/internal/v0.1/the/best/path")
-    end
-
-    it "adds the passed query" do
-      expect(described_class.new.send(:internal_url_for, "the/path", "query=param")).to eq("http://example.com:8080/internal/v0.1/the/path?query=param")
+      expect(subject.send(:topology_internal_url_for, "the/best/path")).to eq("http://example.com:8080/internal/v0.0/the/best/path")
     end
   end
 
@@ -163,7 +158,7 @@ describe TopologicalInventory::Orchestrator::Worker do
       stub_rest_get(url_2, user_tenant_header, response_2)
       stub_rest_get(url_3, user_tenant_header, response_3)
 
-      expect { |b| described_class.new.send(:each_resource, url_1, user_tenant_account, &b) }.to yield_successive_args(1, 2, 3, 4, 5, 6, 7, 8)
+      expect { |b| subject.send(:each_resource, url_1, user_tenant_account, &b) }.to yield_successive_args(1, 2, 3, 4, 5, 6, 7, 8)
     end
 
     it "works with non-paginated responses" do
@@ -171,15 +166,15 @@ describe TopologicalInventory::Orchestrator::Worker do
       response = [1, 2, 3, 4, 5, 6, 7, 8].to_json
 
       stub_rest_get(url, user_tenant_header, response)
-      expect { |b| described_class.new.send(:each_resource, url, user_tenant_account, &b) }.to yield_successive_args(1, 2, 3, 4, 5, 6, 7, 8)
+      expect { |b| subject.send(:each_resource, url, user_tenant_account, &b) }.to yield_successive_args(1, 2, 3, 4, 5, 6, 7, 8)
     end
   end
 
   describe "#api_base_url (private)" do
-    let(:url) { subject.send(:api_base_url) }
+    let(:url) { subject.send(:topology_api_url_for, "sources") }
 
     it "returns a sane value" do
-      expect(url).to eq("http://example.com:8080/v0.1")
+      expect(url).to eq("http://example.com:8080/v0.1/sources")
     end
 
     context "with APP_NAME set" do
@@ -191,17 +186,17 @@ describe TopologicalInventory::Orchestrator::Worker do
       end
 
       it "includes the APP_NAME" do
-        expect(url).to eq("http://example.com:8080/topological-inventory/v0.1")
+        expect(url).to eq("http://example.com:8080/topological-inventory/v0.1/sources")
       end
 
       it "uses the PATH_PREFIX with a leading slash" do
         ENV["PATH_PREFIX"] = "/this/is/a/path"
-        expect(url).to eq("http://example.com:8080/this/is/a/path/topological-inventory/v0.1")
+        expect(url).to eq("http://example.com:8080/this/is/a/path/topological-inventory/v0.1/sources")
       end
 
       it "uses the PATH_PREFIX without a leading slash" do
         ENV["PATH_PREFIX"] = "also/a/path"
-        expect(url).to eq("http://example.com:8080/also/a/path/topological-inventory/v0.1")
+        expect(url).to eq("http://example.com:8080/also/a/path/topological-inventory/v0.1/sources")
       end
     end
   end
