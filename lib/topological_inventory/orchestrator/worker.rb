@@ -11,18 +11,20 @@ require "topological_inventory/orchestrator/object_manager"
 module TopologicalInventory
   module Orchestrator
     class Worker
-      TOPOLOGY_API_VERSION = "v0.1".freeze
-      SOURCES_API_VERSION = "v1.0".freeze
       ORCHESTRATOR_TENANT = "system_orchestrator".freeze
 
-      attr_reader :logger, :sources_url, :topology_url
+      attr_reader :logger, :sources_api, :sources_internal_api, :topology_api, :topology_internal_api
 
-      def initialize(sources_url:, topology_url:, collector_definitions_file: ENV["COLLECTOR_DEFINITIONS_FILE"])
+      def initialize(sources_api:, topology_api:, collector_definitions_file: ENV["COLLECTOR_DEFINITIONS_FILE"])
         @collector_definitions_file = collector_definitions_file || TopologicalInventory::Orchestrator.root.join("config/collector_definitions.yaml")
 
-        @logger       = ManageIQ::Loggers::Container.new
-        @sources_url  = sources_url
-        @topology_url = topology_url
+        @logger = ManageIQ::Loggers::Container.new
+
+        @sources_api = sources_api
+        @sources_internal_api = URI.parse(sources_api).tap { |uri| uri.path = "/internal/v1.0" }.to_s
+
+        @topology_api = topology_api
+        @topology_internal_api = URI.parse(topology_api).tap { |uri| uri.path = "/internal/v0.0" }.to_s
       end
 
       def run
@@ -100,19 +102,19 @@ module TopologicalInventory
       end
 
       def sources_api_url_for(path)
-        File.join(sources_url, ENV["PATH_PREFIX"].to_s, ENV["APP_NAME"].to_s, SOURCES_API_VERSION, path)
+        File.join(sources_api, path)
       end
 
       def sources_internal_url_for(path)
-        File.join(sources_url, "internal", "v1.0", path)
+        File.join(sources_internal_api, path)
       end
 
       def topology_api_url_for(path)
-        File.join(topology_url, ENV["PATH_PREFIX"].to_s, ENV["APP_NAME"].to_s, TOPOLOGY_API_VERSION, path)
+        File.join(topology_api, path)
       end
 
       def topology_internal_url_for(path)
-        File.join(topology_url, "internal", "v0.0", path)
+        File.join(topology_internal_api, path)
       end
 
       def each_resource(url, tenant_account = ORCHESTRATOR_TENANT, &block)

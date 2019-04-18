@@ -6,27 +6,13 @@ require "bundler/setup"
 
 $:.push File.expand_path("../../lib", __FILE__)
 
-def default_sources_url
-  return if ENV.values_at("SOURCES_SCHEME", "SOURCES_HOST", "SOURCES_PORT").any?(&:nil?)
-  URI::Generic.build(
-    :scheme => ENV["SOURCES_SCHEME"], :host => ENV["SOURCES_HOST"], :port => ENV["SOURCES_PORT"]
-  ).to_s
-end
-
-def default_topology_url
-  return if ENV.values_at("TOPOLOGICAL_INVENTORY_API_SERVICE_HOST", "TOPOLOGICAL_INVENTORY_API_SERVICE_PORT").any?(&:nil?)
-  URI::Generic.build(
-    :scheme => "http", :host => ENV["TOPOLOGICAL_INVENTORY_API_SERVICE_HOST"], :port => ENV["TOPOLOGICAL_INVENTORY_API_SERVICE_PORT"]
-  ).to_s
-end
-
 def parse_args
   require 'optimist'
   opts = Optimist.options do
-    opt :sources_url, "TODO", :type => :string,
-        :default => default_sources_url, :required => default_sources_url.nil?
-    opt :topology_url, "TODO", :type => :string,
-        :default => default_topology_url, :required => default_topology_url.nil?
+    opt :sources_api, "TODO", :type => :string,
+        :default => ENV["SOURCES_API"], :required => ENV["SOURCES_API"].nil?
+    opt :topology_api, "TODO", :type => :string,
+        :default => ENV["TOPOLOGICAL_INVENTORY_API"], :required => ENV["TOPOLOGICAL_INVENTORY_API"].nil?
   end
 
   opts
@@ -35,7 +21,5 @@ end
 require "topological_inventory-orchestrator"
 
 args = parse_args
-w = TopologicalInventory::Orchestrator::Worker.new(
-  :sources_url  => args[:sources_url],
-  :topology_url => args[:topology_url])
+w = TopologicalInventory::Orchestrator::Worker.new(sources_api: args[:sources_api], topology_api: args[:topology_api])
 w.run

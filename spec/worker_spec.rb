@@ -28,10 +28,10 @@ describe TopologicalInventory::Orchestrator::Worker do
     ENV.delete("IMAGE_NAMESPACE")
   end
 
-  subject { described_class.new(sources_url: sources_url, topology_url: topology_url) }
+  subject { described_class.new(sources_api: sources_api, topology_api: topology_api) }
 
-  let(:sources_url)  { "http://example.com:8080" }
-  let(:topology_url) { "http://example.com:8080" }
+  let(:sources_api)  { "http://example.com:8080/api/sources/v1.0" }
+  let(:topology_api) { "http://example.com:8080/api/topological-inventory/v0.1" }
 
   context "#collectors_from_sources_api" do
     let(:source_types_response) do
@@ -167,37 +167,6 @@ describe TopologicalInventory::Orchestrator::Worker do
 
       stub_rest_get(url, user_tenant_header, response)
       expect { |b| subject.send(:each_resource, url, user_tenant_account, &b) }.to yield_successive_args(1, 2, 3, 4, 5, 6, 7, 8)
-    end
-  end
-
-  describe "#api_base_url (private)" do
-    let(:url) { subject.send(:topology_api_url_for, "sources") }
-
-    it "returns a sane value" do
-      expect(url).to eq("http://example.com:8080/v0.1/sources")
-    end
-
-    context "with APP_NAME set" do
-      around do |e|
-        ENV["APP_NAME"] = "topological-inventory"
-        e.run
-        ENV.delete("APP_NAME")
-        ENV.delete("PATH_PREFIX")
-      end
-
-      it "includes the APP_NAME" do
-        expect(url).to eq("http://example.com:8080/topological-inventory/v0.1/sources")
-      end
-
-      it "uses the PATH_PREFIX with a leading slash" do
-        ENV["PATH_PREFIX"] = "/this/is/a/path"
-        expect(url).to eq("http://example.com:8080/this/is/a/path/topological-inventory/v0.1/sources")
-      end
-
-      it "uses the PATH_PREFIX without a leading slash" do
-        ENV["PATH_PREFIX"] = "also/a/path"
-        expect(url).to eq("http://example.com:8080/also/a/path/topological-inventory/v0.1/sources")
-      end
     end
   end
 
