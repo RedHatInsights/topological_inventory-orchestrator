@@ -61,8 +61,8 @@ module TopologicalInventory
         each_resource(sources_api_url_for("source_types")) { |source_type| source_types_by_id[source_type["id"]] = source_type }
 
         each_tenant do |tenant|
-          each_resource(topology_api_url_for("sources"), tenant) do |source_stub|
-            source      = get_and_parse(sources_api_url_for("sources/#{source_stub["id"]}"), tenant)
+          each_resource(topology_api_url_for("sources"), tenant) do |topology_source|
+            source      = get_and_parse(sources_api_url_for("sources/#{topology_source["id"]}"), tenant)
             source_type = source_types_by_id[source["source_type_id"]]
 
             next unless collector_definition = collector_definitions[source_type["name"]]
