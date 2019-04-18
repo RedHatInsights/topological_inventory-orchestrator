@@ -64,15 +64,22 @@ module TopologicalInventory
 
         each_tenant do |tenant|
           each_resource(topology_api_url_for("sources"), tenant) do |topology_source|
-            source      = get_and_parse(sources_api_url_for("sources/#{topology_source["id"]}"), tenant)
+            source = get_and_parse(sources_api_url_for("sources/#{topology_source["id"]}"), tenant)
+            next if source.nil?
+
             source_type = source_types_by_id[source["source_type_id"]]
 
             next unless collector_definition = collector_definitions[source_type["name"]]
 
-            next unless endpoint       = get_and_parse(sources_api_url_for("sources/#{source["id"]}/endpoints"), tenant)["data"].first
-            next unless authentication = get_and_parse(sources_api_url_for("endpoints/#{endpoint["id"]}/authentications"), tenant)["data"].first
+            endpoints = get_and_parse(sources_api_url_for("sources/#{source["id"]}/endpoints"), tenant)
+            next unless endpoint = endpoints&.dig("data")&.first
+
+            authentications = get_and_parse(sources_api_url_for("endpoints/#{endpoint["id"]}/authentications"), tenant)
+            next unless authentication = authentications&.dig("data")&.first
 
             auth = authentication_with_password(authentication["id"], tenant)
+            next if auth.nil?
+
             yield source, endpoint, auth, collector_definition
           end
         end
@@ -137,6 +144,8 @@ module TopologicalInventory
             )
           )
         )
+      rescue RestClient::NotFound
+        nil
       end
 
       def each_tenant

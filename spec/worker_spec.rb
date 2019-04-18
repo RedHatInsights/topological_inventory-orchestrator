@@ -50,7 +50,8 @@ describe TopologicalInventory::Orchestrator::Worker do
           "links": {},
           "data": [
             {"id":"1","uid":"cacebc33-1ed8-49d4-b4f9-713f2552ee65","tenant_id":"1"},
-            {"id":"2","uid":"31b5338b-685d-4056-ba39-d00b4d7f19cc","tenant_id":"1"}
+            {"id":"2","uid":"31b5338b-685d-4056-ba39-d00b4d7f19cc","tenant_id":"1"},
+            {"id":"3","uid":"95f057b7-ec11-4f04-b155-e54dcd5b01aa","tenant_id":"1"}
           ]
         }
       EOJ
@@ -115,6 +116,7 @@ describe TopologicalInventory::Orchestrator::Worker do
       stub_rest_get("#{sources_api}/sources/1/endpoints", user_tenant_header, sources_1_endpoints_response)
       stub_rest_get("#{sources_api}/sources/2", user_tenant_header, sources_2_response)
       stub_rest_get("#{sources_api}/sources/2/endpoints", user_tenant_header, sources_2_endpoints_response)
+      stub_rest_get_404("#{sources_api}/sources/3", user_tenant_header)
       stub_rest_get("#{sources_api}/endpoints/1/authentications", user_tenant_header, endpoints_1_authentications_response)
       stub_rest_get("http://sources.local:8080/internal/v1.0/authentications/1?expose_encrypted_attribute[]=password", user_tenant_header, {"username" => "USER", "password" => "PASS"}.to_json)
 
@@ -177,5 +179,9 @@ describe TopologicalInventory::Orchestrator::Worker do
 
   def stub_rest_get(path, tenant_header, response)
     expect(RestClient).to receive(:get).with(path, tenant_header).and_return(response)
+  end
+
+  def stub_rest_get_404(path, tenant_header)
+    expect(RestClient).to receive(:get).with(path, tenant_header).and_raise(RestClient::NotFound)
   end
 end
