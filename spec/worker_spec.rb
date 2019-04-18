@@ -28,8 +28,8 @@ describe TopologicalInventory::Orchestrator::Worker do
 
   subject { described_class.new(sources_api: sources_api, topology_api: topology_api) }
 
-  let(:sources_api)  { "http://example.com:8080/api/sources/v1.0" }
-  let(:topology_api) { "http://example.com:8080/api/topological-inventory/v0.1" }
+  let(:sources_api)  { "http://sources.local:8080/api/sources/v1.0" }
+  let(:topology_api) { "http://topology.local:8080/api/topological-inventory/v0.1" }
 
   context "#collectors_from_sources_api" do
     let(:source_types_response) do
@@ -108,20 +108,20 @@ describe TopologicalInventory::Orchestrator::Worker do
     end
 
     it "generates the expected hash" do
-      stub_rest_get("http://example.com:8080/api/sources/v1.0/source_types", orchestrator_tenant_header, source_types_response)
-      stub_rest_get("http://example.com:8080/internal/v0.0/tenants", orchestrator_tenant_header, tenants_response)
-      stub_rest_get("http://example.com:8080/api/topological-inventory/v0.1/sources", user_tenant_header, topology_sources_response)
-      stub_rest_get("http://example.com:8080/api/sources/v1.0/sources/1", user_tenant_header, sources_1_response)
-      stub_rest_get("http://example.com:8080/api/sources/v1.0/sources/1/endpoints", user_tenant_header, sources_1_endpoints_response)
-      stub_rest_get("http://example.com:8080/api/sources/v1.0/sources/2", user_tenant_header, sources_2_response)
-      stub_rest_get("http://example.com:8080/api/sources/v1.0/sources/2/endpoints", user_tenant_header, sources_2_endpoints_response)
-      stub_rest_get("http://example.com:8080/api/sources/v1.0/endpoints/1/authentications", user_tenant_header, endpoints_1_authentications_response)
-      stub_rest_get("http://example.com:8080/internal/v1.0/authentications/1?expose_encrypted_attribute[]=password", user_tenant_header, {"username" => "USER", "password" => "PASS"}.to_json)
+      stub_rest_get("#{sources_api}/source_types", orchestrator_tenant_header, source_types_response)
+      stub_rest_get("http://topology.local:8080/internal/v0.0/tenants", orchestrator_tenant_header, tenants_response)
+      stub_rest_get("#{topology_api}/sources", user_tenant_header, topology_sources_response)
+      stub_rest_get("#{sources_api}/sources/1", user_tenant_header, sources_1_response)
+      stub_rest_get("#{sources_api}/sources/1/endpoints", user_tenant_header, sources_1_endpoints_response)
+      stub_rest_get("#{sources_api}/sources/2", user_tenant_header, sources_2_response)
+      stub_rest_get("#{sources_api}/sources/2/endpoints", user_tenant_header, sources_2_endpoints_response)
+      stub_rest_get("#{sources_api}/endpoints/1/authentications", user_tenant_header, endpoints_1_authentications_response)
+      stub_rest_get("http://sources.local:8080/internal/v1.0/authentications/1?expose_encrypted_attribute[]=password", user_tenant_header, {"username" => "USER", "password" => "PASS"}.to_json)
 
-      expect(RestClient).not_to receive(:get).with("http://example.com:8080/api/sources/v1.0/endpoints/8/authentications", any_args)
-      expect(RestClient).not_to receive(:get).with("http://example.com:8080/api/sources/v1.0/endpoints/9/authentications", any_args)
-      expect(RestClient).not_to receive(:get).with("http://example.com:8080/internal/v1.0/authentications/8?expose_encrypted_attribute[]=password", any_args)
-      expect(RestClient).not_to receive(:get).with("http://example.com:8080/internal/v1.0/authentications/9?expose_encrypted_attribute[]=password", any_args)
+      expect(RestClient).not_to receive(:get).with("#{sources_api}/endpoints/8/authentications", any_args)
+      expect(RestClient).not_to receive(:get).with("#{sources_api}/endpoints/9/authentications", any_args)
+      expect(RestClient).not_to receive(:get).with("http://sources.local:8080/internal/v1.0/authentications/8?expose_encrypted_attribute[]=password", any_args)
+      expect(RestClient).not_to receive(:get).with("http://sources.local:8080/internal/v1.0/authentications/9?expose_encrypted_attribute[]=password", any_args)
 
       collector_hash = subject.send(:collectors_from_sources_api)
 
@@ -146,7 +146,7 @@ describe TopologicalInventory::Orchestrator::Worker do
 
   describe "#internal_url_for" do
     it "replaces the path with /internal/v0.1/<path>" do
-      expect(subject.send(:topology_internal_url_for, "the/best/path")).to eq("http://example.com:8080/internal/v0.0/the/best/path")
+      expect(subject.send(:topology_internal_url_for, "the/best/path")).to eq("http://topology.local:8080/internal/v0.0/the/best/path")
     end
   end
 
