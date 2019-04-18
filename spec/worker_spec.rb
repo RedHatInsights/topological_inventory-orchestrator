@@ -20,8 +20,6 @@ describe TopologicalInventory::Orchestrator::Worker do
     {"x-rh-identity" => "eyJpZGVudGl0eSI6eyJhY2NvdW50X251bWJlciI6IjEyMzQ1In19"}
   end
 
-  before { allow(RestClient).to receive(:get).with("http://example.com:8080/internal/v0.1/tenants", orchestrator_tenant_header).and_return(tenants_response) }
-
   around do |e|
     ENV["IMAGE_NAMESPACE"] = "buildfactory"
     e.run
@@ -46,23 +44,30 @@ describe TopologicalInventory::Orchestrator::Worker do
       EOJ
     end
 
-    let(:source_types_1_sources_response) do
+    let(:topology_sources_response) do
       <<~EOJ
         {
           "links": {},
           "data": [
-            {"id":"1","source_type_id":"1","name":"mock-source","uid":"cacebc33-1ed8-49d4-b4f9-713f2552ee65","tenant_id":"1"},
-            {"id":"2","source_type_id":"1","name":"OCP","uid":"31b5338b-685d-4056-ba39-d00b4d7f19cc","tenant_id":"1"}
+            {"id":"1","uid":"cacebc33-1ed8-49d4-b4f9-713f2552ee65","tenant_id":"1"},
+            {"id":"2","uid":"31b5338b-685d-4056-ba39-d00b4d7f19cc","tenant_id":"1"}
           ]
         }
       EOJ
     end
 
-    let(:source_types_2_sources_response) do
+    let(:sources_1_response) do
       <<~EOJ
         {
-          "links": {},
-          "data": []
+          "id":"1","source_type_id":"1","name":"mock-source","uid":"cacebc33-1ed8-49d4-b4f9-713f2552ee65","tenant":"#{user_tenant_account}"
+        }
+      EOJ
+    end
+
+    let(:sources_2_response) do
+      <<~EOJ
+        {
+          "id":"2","source_type_id":"1","name":"OCP","uid":"31b5338b-685d-4056-ba39-d00b4d7f19cc","tenant":"#{user_tenant_account}"
         }
       EOJ
     end
@@ -105,18 +110,20 @@ describe TopologicalInventory::Orchestrator::Worker do
     it "generates the expected hash" do
       instance = subject
 
-      stub_rest_get("http://example.com:8080/v0.1/source_types", user_tenant_header, source_types_response)
-      stub_rest_get("http://example.com:8080/v0.1/source_types/1/sources", user_tenant_header, source_types_1_sources_response)
-      stub_rest_get("http://example.com:8080/v0.1/source_types/2/sources", user_tenant_header, source_types_2_sources_response)
-      stub_rest_get("http://example.com:8080/v0.1/sources/1/endpoints", user_tenant_header, sources_1_endpoints_response)
-      stub_rest_get("http://example.com:8080/v0.1/sources/2/endpoints", user_tenant_header, sources_2_endpoints_response)
-      stub_rest_get("http://example.com:8080/v0.1/authentications?resource_type=Endpoint&resource_id=1", user_tenant_header, endpoints_1_authentications_response)
-      stub_rest_get("http://example.com:8080/internal/v0.1/authentications/1?expose_encrypted_attribute[]=password", user_tenant_header, {"username" => "USER", "password" => "PASS"}.to_json)
+      stub_rest_get("http://example.com:8080/api/sources/v1.0/source_types", orchestrator_tenant_header, source_types_response)
+      stub_rest_get("http://example.com:8080/internal/v0.0/tenants", orchestrator_tenant_header, tenants_response)
+      stub_rest_get("http://example.com:8080/api/topological-inventory/v0.1/sources", user_tenant_header, topology_sources_response)
+      stub_rest_get("http://example.com:8080/api/sources/v1.0/sources/1", user_tenant_header, sources_1_response)
+      stub_rest_get("http://example.com:8080/api/sources/v1.0/sources/1/endpoints", user_tenant_header, sources_1_endpoints_response)
+      stub_rest_get("http://example.com:8080/api/sources/v1.0/sources/2", user_tenant_header, sources_2_response)
+      stub_rest_get("http://example.com:8080/api/sources/v1.0/sources/2/endpoints", user_tenant_header, sources_2_endpoints_response)
+      stub_rest_get("http://example.com:8080/api/sources/v1.0/endpoints/1/authentications", user_tenant_header, endpoints_1_authentications_response)
+      stub_rest_get("http://example.com:8080/internal/v1.0/authentications/1?expose_encrypted_attribute[]=password", user_tenant_header, {"username" => "USER", "password" => "PASS"}.to_json)
 
-      expect(RestClient).not_to receive(:get).with("http://example.com:8080/v0.1/authentications?resource_type=Endpoint&resource_id=8", any_args)
-      expect(RestClient).not_to receive(:get).with("http://example.com:8080/v0.1/authentications?resource_type=Endpoint&resource_id=9", any_args)
-      expect(RestClient).not_to receive(:get).with("http://example.com:8080/internal/v0.1/authentications/8?expose_encrypted_attribute[]=password", any_args)
-      expect(RestClient).not_to receive(:get).with("http://example.com:8080/internal/v0.1/authentications/9?expose_encrypted_attribute[]=password", any_args)
+      expect(RestClient).not_to receive(:get).with("http://example.com:8080/api/sources/v1.0/endpoints/8/authentications", any_args)
+      expect(RestClient).not_to receive(:get).with("http://example.com:8080/api/sources/v1.0/endpoints/9/authentications", any_args)
+      expect(RestClient).not_to receive(:get).with("http://example.com:8080/internal/v1.0/authentications/8?expose_encrypted_attribute[]=password", any_args)
+      expect(RestClient).not_to receive(:get).with("http://example.com:8080/internal/v1.0/authentications/9?expose_encrypted_attribute[]=password", any_args)
 
       collector_hash = instance.send(:collectors_from_sources_api)
 
