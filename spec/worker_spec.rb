@@ -108,8 +108,6 @@ describe TopologicalInventory::Orchestrator::Worker do
     end
 
     it "generates the expected hash" do
-      instance = subject
-
       stub_rest_get("http://example.com:8080/api/sources/v1.0/source_types", orchestrator_tenant_header, source_types_response)
       stub_rest_get("http://example.com:8080/internal/v0.0/tenants", orchestrator_tenant_header, tenants_response)
       stub_rest_get("http://example.com:8080/api/topological-inventory/v0.1/sources", user_tenant_header, topology_sources_response)
@@ -125,7 +123,7 @@ describe TopologicalInventory::Orchestrator::Worker do
       expect(RestClient).not_to receive(:get).with("http://example.com:8080/internal/v1.0/authentications/8?expose_encrypted_attribute[]=password", any_args)
       expect(RestClient).not_to receive(:get).with("http://example.com:8080/internal/v1.0/authentications/9?expose_encrypted_attribute[]=password", any_args)
 
-      collector_hash = instance.send(:collectors_from_sources_api)
+      collector_hash = subject.send(:collectors_from_sources_api)
 
       expect(collector_hash).to eq(
         "09ff859d6a98e23d69968d1419bf8b25b910d3ee" => {
