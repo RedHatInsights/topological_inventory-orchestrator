@@ -107,11 +107,11 @@ module TopologicalInventory
                   :image         => "#{image_namespace}/#{image}",
                   :resources     => {
                     :limits   => {
-                      :cpu    => "200m",
+                      :cpu    => "50m",
                       :memory => "400Mi"
                     },
                     :requests => {
-                      :cpu    => "100m",
+                      :cpu    => "20m",
                       :memory => "200Mi"
                     }
                   }
