@@ -13,9 +13,10 @@ module TopologicalInventory
     class Worker
       ORCHESTRATOR_TENANT = "system_orchestrator".freeze
 
-      attr_reader :logger, :sources_api, :sources_internal_api, :topology_api, :topology_internal_api
+      attr_reader :logger, :collector_image_tag, :sources_api, :sources_internal_api, :topology_api, :topology_internal_api
 
-      def initialize(sources_api:, topology_api:)
+      def initialize(collector_image_tag:, sources_api:, topology_api:)
+        @collector_image_tag = collector_image_tag
 
         @logger = ManageIQ::Loggers::Container.new
 
@@ -162,10 +163,10 @@ module TopologicalInventory
         @collector_definitions ||= begin
           {
             "amazon"    => {
-              "image" => "topological-inventory-amazon:latest"
+              "image" => "topological-inventory-amazon:#{collector_image_tag}"
             },
             "openshift" => {
-              "image" => "topological-inventory-openshift:latest"
+              "image" => "topological-inventory-openshift:#{collector_image_tag}"
             },
           }
         end
