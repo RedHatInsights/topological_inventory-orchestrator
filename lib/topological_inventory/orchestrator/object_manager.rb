@@ -100,7 +100,18 @@ module TopologicalInventory
           :spec     => {
             :selector => {:name => name},
             :template => {
-              :metadata => {:name => name, :labels => {:name => name, :app => app_name}},
+              :metadata => {
+                :annotations => {
+                  "prometheus.io/path"   => "/metrics",
+                  "prometheus.io/port"   => "9394",
+                  "prometheus.io/scrape" => "true",
+                },
+                :labels      => {
+                  :app  => app_name,
+                  :name => name,
+                },
+                :name        => name
+              },
               :spec     => {
                 :containers         => [{
                   :name          => name,
