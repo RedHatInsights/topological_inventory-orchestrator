@@ -1,7 +1,5 @@
 #!/usr/bin/env ruby
 
-Signal.trap("TERM") { exit }
-
 require "bundler/setup"
 
 $:.push File.expand_path("../../lib", __FILE__)
@@ -9,6 +7,7 @@ $:.push File.expand_path("../../lib", __FILE__)
 def parse_args
   require 'optimist'
   opts = Optimist.options do
+    opt :metrics_port, "Port to expose the metrics endpoint on, 0 to disable metrics", :type => :integer, :default => 9394
     opt :sources_api, "URL to the sources service, e.g. http://localhost:3000/api/v1.0", :type => :string,
         :default => ENV["SOURCES_API"], :required => ENV["SOURCES_API"].nil?
     opt :topology_api, "URL to the topological inventory service, e.g. http://localhost:4000/api/v0.1", :type => :string,
@@ -19,7 +18,16 @@ def parse_args
 end
 
 require "topological_inventory-orchestrator"
+require "topological_inventory/orchestrator/application_metrics"
 
 args = parse_args
+
+metrics = TopologicalInventory::Orchestrator::ApplicationMetrics.new(args[:metrics_port])
+
+Signal.trap("TERM") do
+  metrics.stop_server
+  exit
+end
+
 w = TopologicalInventory::Orchestrator::Worker.new(sources_api: args[:sources_api], topology_api: args[:topology_api])
 w.run
