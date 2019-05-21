@@ -13,10 +13,10 @@ module TopologicalInventory
     class Worker
       ORCHESTRATOR_TENANT = "system_orchestrator".freeze
 
-      attr_reader :logger, :sources_api, :sources_internal_api, :topology_api, :topology_internal_api
+      attr_reader :logger, :collector_image_tag, :sources_api, :sources_internal_api, :topology_api, :topology_internal_api
 
-      def initialize(sources_api:, topology_api:, collector_definitions_file: ENV["COLLECTOR_DEFINITIONS_FILE"])
-        @collector_definitions_file = collector_definitions_file || TopologicalInventory::Orchestrator.root.join("config/collector_definitions.yaml")
+      def initialize(collector_image_tag:, sources_api:, topology_api:)
+        @collector_image_tag = collector_image_tag
 
         @logger = ManageIQ::Loggers::Container.new
 
@@ -94,7 +94,7 @@ module TopologicalInventory
             "endpoint_port"   => endpoint["port"].to_s,
             "endpoint_scheme" => endpoint["scheme"],
             "image"           => collector_definition["image"],
-            "image_namespace" => collector_definition["image_namespace"] || ENV["IMAGE_NAMESPACE"],
+            "image_namespace" => ENV["IMAGE_NAMESPACE"],
             "source_id"       => source["id"],
             "source_uid"      => source["uid"],
             "secret"          => {
@@ -161,8 +161,14 @@ module TopologicalInventory
       ### Orchestrator Stuff
       def collector_definitions
         @collector_definitions ||= begin
-          require 'yaml'
-          YAML.load_file(@collector_definitions_file)
+          {
+            "amazon"    => {
+              "image" => "topological-inventory-amazon:#{collector_image_tag}"
+            },
+            "openshift" => {
+              "image" => "topological-inventory-openshift:#{collector_image_tag}"
+            },
+          }
         end
       end
 

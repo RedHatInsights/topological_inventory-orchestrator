@@ -26,7 +26,7 @@ describe TopologicalInventory::Orchestrator::Worker do
     ENV.delete("IMAGE_NAMESPACE")
   end
 
-  subject { described_class.new(sources_api: sources_api, topology_api: topology_api) }
+  subject { described_class.new(collector_image_tag: "dev", sources_api: sources_api, topology_api: topology_api) }
 
   let(:sources_api)  { "http://sources.local:8080/api/sources/v1.0" }
   let(:topology_api) { "http://topology.local:8080/api/topological-inventory/v0.1" }
@@ -128,12 +128,12 @@ describe TopologicalInventory::Orchestrator::Worker do
       collector_hash = subject.send(:collectors_from_sources_api)
 
       expect(collector_hash).to eq(
-        "09ff859d6a98e23d69968d1419bf8b25b910d3ee" => {
+        "409a88c2a187b569c8e56ebe4db977666251e343" => {
           "endpoint_host"   => "example.com",
           "endpoint_path"   => "/api",
           "endpoint_port"   => "8443",
           "endpoint_scheme" => "https",
-          "image"           => "topological-inventory-openshift:latest",
+          "image"           => "topological-inventory-openshift:dev",
           "image_namespace" => "buildfactory",
           "source_id"       => "2",
           "source_uid"      => "31b5338b-685d-4056-ba39-d00b4d7f19cc",
