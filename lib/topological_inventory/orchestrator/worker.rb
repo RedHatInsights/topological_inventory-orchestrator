@@ -18,7 +18,7 @@ module TopologicalInventory
       def initialize(collector_image_tag:, sources_api:, topology_api:)
         @collector_image_tag = collector_image_tag
 
-        @logger = ManageIQ::Loggers::Container.new
+        @logger = ManageIQ::Loggers::CloudWatch.new
 
         @sources_api = sources_api
         @sources_internal_api = URI.parse(sources_api).tap { |uri| uri.path = "/internal/v1.0" }.to_s
