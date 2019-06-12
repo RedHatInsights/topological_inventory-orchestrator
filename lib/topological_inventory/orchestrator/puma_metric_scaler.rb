@@ -8,8 +8,6 @@ module TopologicalInventory
       end
 
       def run
-        token = "SjZ9YlK2tGVdC4XIKY0Dtc-okEKWTFA8GsENFUf8alM"
-        namespace = "topological-inventory-ci"
         service_name = "topological-inventory-api"
         metrics_prefix = "topological_inventory_api"
         minimum_replicas = 1
@@ -17,12 +15,8 @@ module TopologicalInventory
         target_usage_pct = 0.5
         scale_threshold_pct = 0.2
 
-        uri = URI::HTTPS.build(:host => "api.insights-dev.openshift.com", :path => "/api")
-        require 'kubeclient'
-        client = Kubeclient::Client.new(uri, :auth_options => {:bearer_token => token})
-
         loop do
-          endpoint = client.get_endpoint(service_name, namespace)
+          endpoint = object_manager.get_endpoint(service_name)
           pod_ips = endpoint.subsets.flat_map { |s| s.addresses.collect { |a| a[:ip] } }
 
           max_threads = 0
@@ -41,6 +35,13 @@ module TopologicalInventory
           if difference.abs > scale_threshold_pct
             difference.positive? ? scale_up : scale_down
           end
+        end
+      end
+
+      def object_manager
+        @object_manager ||= begin
+          require "topological_inventory/orchestrator/object_manager"
+          ObjectManager.new
         end
       end
 

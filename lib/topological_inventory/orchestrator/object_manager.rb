@@ -37,6 +37,10 @@ module TopologicalInventory
         )
       end
 
+      def get_endpoint(name)
+        kube_connection.get_endpoint(name, my_namespace)
+      end
+
       def delete_deployment_config(name)
         rc = kube_connection.get_replication_controllers(
           :label_selector => "openshift.io/deployment-config.name=#{name}",
