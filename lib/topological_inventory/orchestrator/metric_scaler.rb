@@ -9,6 +9,14 @@ module TopologicalInventory
         @logger = logger || ManageIQ::Loggers::CloudWatch.new
       end
 
+      def run
+        loop do
+          run_once
+
+          sleep 10
+        end
+      end
+
       def run_once
         logger.info("#{self.class.name}##{__method__} Starting...")
         object_manager.get_deployment_configs("metric_scaler_enabled=true").each do |dc|
