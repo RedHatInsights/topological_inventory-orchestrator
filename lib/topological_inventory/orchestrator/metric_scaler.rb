@@ -1,10 +1,12 @@
+require "manageiq-loggers"
+
 module TopologicalInventory
   module Orchestrator
     class MetricScaler
       attr_reader :logger
 
-      def initialize(logger)
-        @logger = logger
+      def initialize(logger = nil)
+        @logger = logger || ManageIQ::Loggers::CloudWatch.new
       end
 
       def run_once
