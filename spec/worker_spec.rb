@@ -154,12 +154,15 @@ describe TopologicalInventory::Orchestrator::Worker do
 
   describe "#each_resource" do
     it "works with paginated responses" do
-      url_1 = "http://example.com:8080/1"
-      url_2 = "http://example.com:8080/2"
-      url_3 = "http://example.com:8080/3"
-      response_1 = {"meta" => {}, "links" => {"first" => url_1, "last" => url_3, "next" => url_2, "prev" => nil}, "data" => [1, 2, 3]}.to_json
-      response_2 = {"meta" => {}, "links" => {"first" => url_1, "last" => url_3, "next" => url_3, "prev" => url_1}, "data" => [4, 5, 6]}.to_json
-      response_3 = {"meta" => {}, "links" => {"first" => url_1, "last" => url_3, "next" => nil, "prev" => url_2}, "data" => [7, 8]}.to_json
+      path_1 = "/api/topological-inventory/v1.0/some_collection"
+      path_2 = "/api/topological-inventory/v1.0/some_collection?offset=10&limit=10"
+      path_3 = "/api/topological-inventory/v1.0/some_collection?offset=20&limit=10"
+      url_1 = "http://example.com:8080#{path_1}"
+      url_2 = "http://example.com:8080#{path_2}"
+      url_3 = "http://example.com:8080#{path_3}"
+      response_1 = {"meta" => {}, "links" => {"first" => path_1, "last" => path_3, "next" => path_2, "prev" => nil}, "data" => [1, 2, 3]}.to_json
+      response_2 = {"meta" => {}, "links" => {"first" => path_1, "last" => path_3, "next" => path_3, "prev" => path_1}, "data" => [4, 5, 6]}.to_json
+      response_3 = {"meta" => {}, "links" => {"first" => path_1, "last" => path_3, "next" => nil, "prev" => path_2}, "data" => [7, 8]}.to_json
 
       stub_rest_get(url_1, user_tenant_header, response_1)
       stub_rest_get(url_2, user_tenant_header, response_2)
