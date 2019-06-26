@@ -162,10 +162,13 @@ module TopologicalInventory
       def collector_definitions
         @collector_definitions ||= begin
           {
-            "amazon"    => {
+            "amazon"        => {
               "image" => "topological-inventory-amazon:#{collector_image_tag}"
             },
-            "openshift" => {
+            "ansible-tower" => {
+              "image" => "topological-inventory-ansible_tower:#{collector_image_tag}"
+            },
+            "openshift"     => {
               "image" => "topological-inventory-openshift:#{collector_image_tag}"
             },
           }
