@@ -171,7 +171,7 @@ module TopologicalInventory
               "image" => "topological-inventory-amazon:#{collector_image_tag}"
             },
             "ansible-tower" => {
-              "image" => "topological-inventory-ansible_tower:#{collector_image_tag}"
+              "image" => "topological-inventory-ansible-tower:#{collector_image_tag}"
             },
             "openshift"     => {
               "image" => "topological-inventory-openshift:#{collector_image_tag}"
