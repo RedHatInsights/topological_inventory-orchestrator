@@ -7,4 +7,8 @@ $:.push File.expand_path("../../lib", __FILE__)
 require "topological_inventory-orchestrator"
 require "irb"
 
+def default_worker
+  TopologicalInventory::Orchestrator::Worker.new(collector_image_tag: ENV["IMAGE_TAG"], sources_api: ENV["SOURCES_API"], topology_api: ENV["TOPOLOGICAL_INVENTORY_API"])
+end
+
 IRB.start

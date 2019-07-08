@@ -132,7 +132,12 @@ module TopologicalInventory
         resources = paging ? response["data"] : response
         resources.each { |i| yield i }
 
-        each_resource(response.fetch_path("links", "next"), tenant_account, &block) if paging
+        return unless paging
+        next_page_link = response.fetch_path("links", "next")
+        return unless next_page_link
+        next_url = URI.parse(url).merge(next_page_link).to_s
+
+        each_resource(next_url, tenant_account, &block)
       end
 
       def get_and_parse(url, tenant_account = ORCHESTRATOR_TENANT)
@@ -162,10 +167,13 @@ module TopologicalInventory
       def collector_definitions
         @collector_definitions ||= begin
           {
-            "amazon"    => {
+            "amazon"        => {
               "image" => "topological-inventory-amazon:#{collector_image_tag}"
             },
-            "openshift" => {
+            "ansible-tower" => {
+              "image" => "topological-inventory-ansible-tower:#{collector_image_tag}"
+            },
+            "openshift"     => {
               "image" => "topological-inventory-openshift:#{collector_image_tag}"
             },
           }
