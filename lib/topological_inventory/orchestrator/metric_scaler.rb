@@ -52,8 +52,7 @@ module TopologicalInventory
 
           next if desired_replicas == dc.spec.replicas # already at max or minimum
 
-          logger.info("Scaling #{dc.metadata.name} to #{desired_replicas} replicas")
-          object_manager.scale(dc.metadata.name, desired_replicas)
+          scale_deployment_config_to_desired_replicas(dc, desired_replicas)
         end
         logger.info("#{self.class.name}##{__method__} Complete")
       end
@@ -78,6 +77,14 @@ module TopologicalInventory
       def pod_ips_for_deployment_config(deployment_config)
         endpoint = object_manager.get_endpoint(deployment_config.metadata.name)
         endpoint.subsets.flat_map { |s| s.addresses.collect { |a| a[:ip] } }
+      end
+
+      def scale_deployment_config_to_desired_replicas(deployment_config, desired_replicas)
+        logger.info("Scaling #{deployment_config.metadata.name} to #{desired_replicas} replicas")
+        object_manager.scale(deployment_config.metadata.name, desired_replicas)
+
+        # Wait for scaling to complete in Openshift
+        sleep(1) until pod_ips_for_deployment_config(deployment_config).length == desired_replicas
       end
 
       def scrape_metrics_from_ip(ip)
