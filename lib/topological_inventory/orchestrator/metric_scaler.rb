@@ -30,13 +30,10 @@ module TopologicalInventory
           next unless current_metric_name && max_metric_name && max_replicas && min_replicas && target_usage_pct && scale_threshold_pct
           logger.info("Metrics scaling enabled for #{dc.metadata.name}")
 
-          endpoint = object_manager.get_endpoint(dc.metadata.name)
-          pod_ips  = endpoint.subsets.flat_map { |s| s.addresses.collect { |a| a[:ip] } }
-
           total_consumed = 0
           total_max      = 0
 
-          pod_ips.each do |ip|
+          pod_ips_for_deployment_config(dc).each do |ip|
             h = scrape_metrics_from_ip(ip)
             total_consumed += h[current_metric_name].to_f
             total_max      += h[max_metric_name].to_f
@@ -76,6 +73,11 @@ module TopologicalInventory
           require "topological_inventory/orchestrator/object_manager"
           ObjectManager.new
         end
+      end
+
+      def pod_ips_for_deployment_config(deployment_config)
+        endpoint = object_manager.get_endpoint(deployment_config.metadata.name)
+        endpoint.subsets.flat_map { |s| s.addresses.collect { |a| a[:ip] } }
       end
 
       def scrape_metrics_from_ip(ip)
