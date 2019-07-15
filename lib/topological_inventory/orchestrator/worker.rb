@@ -24,7 +24,7 @@ module TopologicalInventory
         @sources_internal_api = URI.parse(sources_api).tap { |uri| uri.path = "/internal/v1.0" }.to_s
 
         @topology_api = topology_api
-        @topology_internal_api = URI.parse(topology_api).tap { |uri| uri.path = "/internal/v0.0" }.to_s
+        @topology_internal_api = URI.parse(topology_api).tap { |uri| uri.path = "/internal/v1.0" }.to_s
       end
 
       def run
