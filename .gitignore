@@ -1,2 +1,8 @@
 .bundle
 Gemfile.lock
+
+# generated rubocop file
+.rubocop-https*
+
+## Environment normalization:
+bundler.d/*
