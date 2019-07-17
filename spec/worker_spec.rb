@@ -1,12 +1,15 @@
 describe TopologicalInventory::Orchestrator::Worker do
   let(:tenants_response) do
     <<~EOJ
-      [
-        {
-          "id": "1",
-          "external_tenant": "#{user_tenant_account}"
-        }
-      ]
+      {
+        "links": {},
+        "data": [
+          {
+            "id": "1",
+            "external_tenant": "#{user_tenant_account}"
+          }
+        ]
+      }
     EOJ
   end
 
@@ -110,7 +113,7 @@ describe TopologicalInventory::Orchestrator::Worker do
 
     it "generates the expected hash" do
       stub_rest_get("#{sources_api}/source_types", orchestrator_tenant_header, source_types_response)
-      stub_rest_get("http://topology.local:8080/internal/v0.0/tenants", orchestrator_tenant_header, tenants_response)
+      stub_rest_get("http://topology.local:8080/internal/v1.0/tenants", orchestrator_tenant_header, tenants_response)
       stub_rest_get("#{topology_api}/sources", user_tenant_header, topology_sources_response)
       stub_rest_get("#{sources_api}/sources/1", user_tenant_header, sources_1_response)
       stub_rest_get("#{sources_api}/sources/1/endpoints", user_tenant_header, sources_1_endpoints_response)
@@ -148,7 +151,7 @@ describe TopologicalInventory::Orchestrator::Worker do
 
   describe "#internal_url_for" do
     it "replaces the path with /internal/v0.1/<path>" do
-      expect(subject.send(:topology_internal_url_for, "the/best/path")).to eq("http://topology.local:8080/internal/v0.0/the/best/path")
+      expect(subject.send(:topology_internal_url_for, "the/best/path")).to eq("http://topology.local:8080/internal/v1.0/the/best/path")
     end
   end
 
