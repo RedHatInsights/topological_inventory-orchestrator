@@ -56,7 +56,6 @@ module TopologicalInventory
         logger.info("Checking... complete.")
       end
 
-
       ### API STUFF
       def each_source
         source_types_by_id = {}
@@ -69,13 +68,13 @@ module TopologicalInventory
 
             source_type = source_types_by_id[source["source_type_id"]]
 
-            next unless collector_definition = collector_definitions[source_type["name"]]
+            next unless (collector_definition = collector_definitions[source_type["name"]])
 
             endpoints = get_and_parse(sources_api_url_for("sources/#{source["id"]}/endpoints"), tenant)
-            next unless endpoint = endpoints&.dig("data")&.first
+            next unless (endpoint = endpoints&.dig("data")&.first)
 
             authentications = get_and_parse(sources_api_url_for("endpoints/#{endpoint["id"]}/authentications"), tenant)
-            next unless authentication = authentications&.dig("data")&.first
+            next unless (authentication = authentications&.dig("data")&.first)
 
             auth = authentication_with_password(authentication["id"], tenant)
             next if auth.nil?
@@ -126,15 +125,18 @@ module TopologicalInventory
 
       def each_resource(url, tenant_account = ORCHESTRATOR_TENANT, &block)
         return if url.nil?
+
         response = get_and_parse(url, tenant_account)
-        paging = response.is_a?(Hash)
+        paging = response.kind_of?(Hash)
 
         resources = paging ? response["data"] : response
         resources.each { |i| yield i }
 
         return unless paging
+
         next_page_link = response.fetch_path("links", "next")
         return unless next_page_link
+
         next_url = URI.parse(url).merge(next_page_link).to_s
 
         each_resource(next_url, tenant_account, &block)
@@ -157,13 +159,14 @@ module TopologicalInventory
         each_resource(topology_internal_url_for("tenants")) { |tenant| yield tenant["external_tenant"] }
       end
 
-      # HACK for Authentications
+      # HACK: for Authentications
       def authentication_with_password(id, tenant_account)
         get_and_parse(sources_internal_url_for("/authentications/#{id}?expose_encrypted_attribute[]=password"), tenant_account)
       end
 
-
+      ### ------------------
       ### Orchestrator Stuff
+      ###
       def collector_definitions
         @collector_definitions ||= begin
           {
@@ -184,8 +187,9 @@ module TopologicalInventory
         @object_manager ||= ObjectManager.new
       end
 
-
+      ### ---------------
       ### Openshift stuff
+      ###
       def collector_digests_from_openshift
         object_manager.get_deployment_configs("topological-inventory/collector=true").collect { |i| i.metadata.labels["topological-inventory/collector_digest"] }
       end
@@ -204,8 +208,10 @@ module TopologicalInventory
 
       def remove_openshift_objects_for_source(digest)
         return unless digest
+
         deployment = object_manager.get_deployment_configs("topological-inventory/collector_digest=#{digest}").detect { |i| i.metadata.labels["topological-inventory/collector"] == "true" }
         return unless deployment
+
         logger.info("Removing objects for deployment #{deployment.metadata.name}")
         object_manager.delete_deployment_config(deployment.metadata.name)
         object_manager.delete_secret("#{deployment.metadata.name}-secrets")
