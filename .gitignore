@@ -2,4 +2,4 @@
 Gemfile.lock
 
 # generated rubocop file
-.rubocop*
+.rubocop-*
