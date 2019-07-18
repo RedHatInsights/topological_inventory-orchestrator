@@ -3,16 +3,16 @@ require File.join(__dir__, "../lib/topological_inventory/orchestrator/object_man
 
 describe TopologicalInventory::Orchestrator::MetricScaler do
   let(:instance) { described_class.new(logger) }
-  let(:logger)   { Logger.new(StringIO.new) }
+  let(:logger)   { Logger.new(StringIO.new).tap { |logger| allow(logger).to receive(:info) } }
 
   let(:annotations) do
     {
       "metric_scaler_current_metric_name" => "topological_inventory_api_puma_busy_threads",
       "metric_scaler_max_metric_name"     => "topological_inventory_api_puma_max_threads",
-      "metric_scaler_max_replicas"        => 5,
-      "metric_scaler_min_replicas"        => 1,
-      "metric_scaler_target_usage_pct"    => 50,
-      "metric_scaler_scale_threshold_pct" => 20,
+      "metric_scaler_max_replicas"        => "5",
+      "metric_scaler_min_replicas"        => "1",
+      "metric_scaler_target_usage_pct"    => "50",
+      "metric_scaler_scale_threshold_pct" => "20",
     }
   end
 
@@ -27,12 +27,15 @@ describe TopologicalInventory::Orchestrator::MetricScaler do
   end
 
   it "skips deployment configs that aren't fully configured" do
-    deployment     = double("deployment", :metadata => double("metadata", :name => "deployment", :annotations => {}))
-    object_manager = double("TopologicalInventory::Orchestrator::ObjectManager", :get_deployment_configs => [deployment])
+    deployment     = double("deployment", :metadata => double("metadata", :name => "deployment-#{rand(100..500)}", :annotations => {}))
+    object_manager = double("TopologicalInventory::Orchestrator::ObjectManager", :get_deployment_configs => [deployment], :get_deployment_config => deployment)
 
-    expect(TopologicalInventory::Orchestrator::ObjectManager).to receive(:new).and_return(object_manager)
+    expect(TopologicalInventory::Orchestrator::ObjectManager).to receive(:new).twice.and_return(object_manager)
+    expect(Thread).to receive(:new).and_yield # Sorry, The use of doubles or partial doubles from rspec-mocks outside of the per-test lifecycle is not supported. (RSpec::Mocks::OutsideOfExampleError)
 
-    expect(logger).not_to receive(:info).with("Metrics scaling enabled for #{deployment.metadata.name}")
+    watcher = described_class::Watcher.new(deployment.metadata.name, logger)
+    expect(watcher).not_to receive(:percent_usage_from_metrics)
+    expect(described_class::Watcher).to receive(:new).with(deployment.metadata.name, logger).and_return(watcher)
 
     instance.run_once
   end
@@ -47,6 +50,7 @@ describe TopologicalInventory::Orchestrator::MetricScaler do
     expect(object_manager).to receive(:get_endpoint).with(deployment.metadata.name).and_return(endpoint)
     expect(logger).to receive(:info).with("Metrics scaling enabled for #{deployment.metadata.name}")
     expect(RestClient).to receive(:get).with("http://192.0.2.1:9394/metrics").and_return(rest_client_response(1, 5))
+    expect(logger).to receive(:info).with("Fetching configuration for deployment")
     expect(logger).to receive(:info).with("deployment consuming 1.0 of 5.0, 20.0%")
     expect(logger).to receive(:info).with("TopologicalInventory::Orchestrator::MetricScaler#run_once Complete")
 

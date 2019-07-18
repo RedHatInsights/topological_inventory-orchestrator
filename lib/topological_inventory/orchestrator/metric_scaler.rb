@@ -7,6 +7,7 @@ module TopologicalInventory
 
       def initialize(logger = nil)
         @logger = logger || ManageIQ::Loggers::CloudWatch.new
+        @cache  = {}
       end
 
       def run
@@ -19,78 +20,166 @@ module TopologicalInventory
 
       def run_once
         logger.info("#{self.class.name}##{__method__} Starting...")
-        object_manager.get_deployment_configs("metric_scaler_enabled=true").each do |dc|
-          current_metric_name = dc.metadata.annotations["metric_scaler_current_metric_name"]       # i.e. "topological_inventory_api_puma_busy_threads"
-          max_metric_name     = dc.metadata.annotations["metric_scaler_max_metric_name"]           # i.e. "topological_inventory_api_puma_max_threads"
-          max_replicas        = dc.metadata.annotations["metric_scaler_max_replicas"]&.to_i        # i.e. "5"
-          min_replicas        = dc.metadata.annotations["metric_scaler_min_replicas"]&.to_i        # i.e. "1"
-          target_usage_pct    = dc.metadata.annotations["metric_scaler_target_usage_pct"]&.to_i    # i.e. "50"
-          scale_threshold_pct = dc.metadata.annotations["metric_scaler_scale_threshold_pct"]&.to_i # i.e. "20"
+        dc_names = object_manager.get_deployment_configs("metric_scaler_enabled=true").collect { |dc| dc.metadata.name }
 
-          next unless current_metric_name && max_metric_name && max_replicas && min_replicas && target_usage_pct && scale_threshold_pct
-          logger.info("Metrics scaling enabled for #{dc.metadata.name}")
+        # newly_configured
+        (dc_names - @cache.keys).each { |name| @cache[name] = Watcher.new(name, logger).tap(&:start) }
+        # no_longer_configured
+        (@cache.keys - dc_names).each { |name| @cache.delete(name).stop }
+        # currently configured
+        dc_names.each                 { |name| @cache[name].scale_to_desired_replicas }
 
-          total_consumed = 0
-          total_max      = 0
-
-          pod_ips_for_deployment_config(dc).each do |ip|
-            h = scrape_metrics_from_ip(ip)
-            total_consumed += h[current_metric_name].to_f
-            total_max      += h[max_metric_name].to_f
-          end
-
-          current_usage_pct = (total_consumed.to_f / total_max.to_f) * 100
-          deviation_pct = current_usage_pct - target_usage_pct
-
-          logger.info("#{dc.metadata.name} consuming #{total_consumed} of #{total_max}, #{current_usage_pct}%")
-
-          next if deviation_pct.abs < scale_threshold_pct # Within tolerance
-
-          desired_replicas = dc.spec.replicas
-          deviation_pct.positive? ? desired_replicas += 1 : desired_replicas -= 1
-          desired_replicas = desired_replicas.clamp(min_replicas, max_replicas)
-
-          next if desired_replicas == dc.spec.replicas # already at max or minimum
-
-          scale_deployment_config_to_desired_replicas(dc, desired_replicas)
-        end
         logger.info("#{self.class.name}##{__method__} Complete")
       end
 
       private
 
-      def metrics_text_to_h(metrics_scrape)
-        metrics_scrape.each_line.with_object({}) do |line, h|
-          next if line.start_with?("#") || line.chomp.empty?
-          k, v = line.split(" ")
-          h[k] = v
+      class Watcher
+        attr_reader :deployment_config, :deployment_config_name, :logger, :thread
+
+        def initialize(deployment_config_name, logger)
+          @deployment_config_name = deployment_config_name
+          @logger = logger
+          logger.info("Metrics scaling enabled for #{deployment_config_name}")
+          configure
+        end
+
+        def start
+          @thread = Thread.new do
+            logger.info("Watcher thread for #{deployment_config_name} starting")
+            loop do
+              configure
+              break unless configured?
+
+              60.times do # Collect metrics for ~1 minute then check for config changes
+                moving_usage << percent_usage_from_metrics
+                sleep 1
+              end
+            end
+            logger.info("Watcher thread for #{deployment_config_name} stopping")
+          end
+        end
+
+        def stop
+          @thread.exit
+          @thread.join
+        end
+
+        def moving_usage
+          @moving_usage ||= FixedLengthArray.new(60)
+        end
+
+        def configure
+          logger.info("Fetching configuration for #{deployment_config_name}")
+          @deployment_config   = object_manager.get_deployment_config(deployment_config_name)
+          @current_metric_name = deployment_config.metadata.annotations["metric_scaler_current_metric_name"]       # i.e. "topological_inventory_api_puma_busy_threads"
+          @max_metric_name     = deployment_config.metadata.annotations["metric_scaler_max_metric_name"]           # i.e. "topological_inventory_api_puma_max_threads"
+          @max_replicas        = deployment_config.metadata.annotations["metric_scaler_max_replicas"]&.to_i        # i.e. "5"
+          @min_replicas        = deployment_config.metadata.annotations["metric_scaler_min_replicas"]&.to_i        # i.e. "1"
+          @target_usage_pct    = deployment_config.metadata.annotations["metric_scaler_target_usage_pct"]&.to_i    # i.e. "50"
+          @scale_threshold_pct = deployment_config.metadata.annotations["metric_scaler_scale_threshold_pct"]&.to_i # i.e. "20"
+        end
+
+        def configured?
+          @current_metric_name && @max_metric_name && @max_replicas && @min_replicas && @target_usage_pct && @scale_threshold_pct
+        end
+
+        def scale_to_desired_replicas
+          return unless configured?
+
+          desired_count = desired_replicas
+
+          return if desired_count == deployment_config.spec.replicas # already at max or minimum
+
+          logger.info("Scaling #{deployment_config_name} to #{desired_count} replicas")
+          object_manager.scale(deployment_config_name, desired_count)
+
+          # Wait for scaling to complete in Openshift
+          sleep(1) until pod_ips.length == desired_count
+          logger.info("Scaling #{deployment_config_name} complete")
+        end
+
+        def desired_replicas
+          deviation = moving_usage.average.to_f - @target_usage_pct
+          count     = deployment_config.spec.replicas
+
+          return count if deviation.abs < @scale_threshold_pct # Within tolerance
+
+          deviation.positive? ? count += 1 : count -= 1
+          count.clamp(@min_replicas, @max_replicas)
+        end
+
+        def pod_ips
+          endpoint = object_manager.get_endpoint(deployment_config_name)
+          endpoint.subsets.flat_map { |s| s.addresses.collect { |a| a[:ip] } }
+        end
+
+        private
+
+        class FixedLengthArray
+          attr_reader :max_size, :values
+
+          def initialize(max_size)
+            @max_size = max_size
+            @values = []
+          end
+
+          def <<(new_value)
+            @values = values.unshift(new_value)[0...max_size]
+          end
+
+          def average
+            return nil if values.empty?
+            values.sum / values.size
+          end
+        end
+
+        def object_manager
+          @object_manager ||= begin
+            require "topological_inventory/orchestrator/object_manager"
+            ObjectManager.new
+          end
+        end
+
+        ### Metrics scraping
+
+        def metrics_text_to_h(metrics_scrape)
+          metrics_scrape.each_line.with_object({}) do |line, h|
+            next if line.start_with?("#") || line.chomp.empty?
+            k, v = line.split(" ")
+            h[k] = v
+          end
+        end
+
+        def percent_usage_from_metrics
+          total_consumed = total_max = 0.0
+
+          pod_ips.each do |ip|
+            metrics = scrape_metrics_from_ip(ip)
+            next if metrics[@max_metric_name].to_f == 0.0 # Hasn't handled any traffic yet, so metric isn't even initialized
+
+            total_consumed += metrics[@current_metric_name].to_f
+            total_max      += metrics[@max_metric_name].to_f
+          end
+
+          ((total_consumed.to_f / total_max.to_f) * 100).tap do |current_usage_pct|
+            logger.info("#{deployment_config_name} consuming #{total_consumed} of #{total_max}, #{current_usage_pct}%")
+          end
+        end
+
+        def scrape_metrics_from_ip(ip)
+          require 'restclient'
+          response = RestClient.get("http://#{ip}:9394/metrics")
+          metrics_text_to_h(response)
         end
       end
+
 
       def object_manager
         @object_manager ||= begin
           require "topological_inventory/orchestrator/object_manager"
           ObjectManager.new
         end
-      end
-
-      def pod_ips_for_deployment_config(deployment_config)
-        endpoint = object_manager.get_endpoint(deployment_config.metadata.name)
-        endpoint.subsets.flat_map { |s| s.addresses.collect { |a| a[:ip] } }
-      end
-
-      def scale_deployment_config_to_desired_replicas(deployment_config, desired_replicas)
-        logger.info("Scaling #{deployment_config.metadata.name} to #{desired_replicas} replicas")
-        object_manager.scale(deployment_config.metadata.name, desired_replicas)
-
-        # Wait for scaling to complete in Openshift
-        sleep(1) until pod_ips_for_deployment_config(deployment_config).length == desired_replicas
-      end
-
-      def scrape_metrics_from_ip(ip)
-        require 'restclient'
-        response = RestClient.get("http://#{ip}:9394/metrics")
-        metrics_text_to_h(response)
       end
     end
   end

@@ -30,6 +30,10 @@ module TopologicalInventory
         raise unless e.message =~ /already exists/
       end
 
+      def get_deployment_config(name)
+        connection.get_deployment_config(name, my_namespace)
+      end
+
       def get_deployment_configs(label_selector)
         connection.get_deployment_configs(
           :label_selector => label_selector,
