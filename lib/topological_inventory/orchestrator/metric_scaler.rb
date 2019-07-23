@@ -44,6 +44,10 @@ module TopologicalInventory
           configure
         end
 
+        def configured?
+          @current_metric_name && @max_metric_name && @max_replicas && @min_replicas && @target_usage_pct && @scale_threshold_pct
+        end
+
         def start
           @thread = Thread.new do
             logger.info("Watcher thread for #{deployment_config_name} starting")
@@ -65,25 +69,6 @@ module TopologicalInventory
           @thread.join
         end
 
-        def moving_usage
-          @moving_usage ||= FixedLengthArray.new(60)
-        end
-
-        def configure
-          logger.info("Fetching configuration for #{deployment_config_name}")
-          @deployment_config   = object_manager.get_deployment_config(deployment_config_name)
-          @current_metric_name = deployment_config.metadata.annotations["metric_scaler_current_metric_name"]       # i.e. "topological_inventory_api_puma_busy_threads"
-          @max_metric_name     = deployment_config.metadata.annotations["metric_scaler_max_metric_name"]           # i.e. "topological_inventory_api_puma_max_threads"
-          @max_replicas        = deployment_config.metadata.annotations["metric_scaler_max_replicas"]&.to_i        # i.e. "5"
-          @min_replicas        = deployment_config.metadata.annotations["metric_scaler_min_replicas"]&.to_i        # i.e. "1"
-          @target_usage_pct    = deployment_config.metadata.annotations["metric_scaler_target_usage_pct"]&.to_i    # i.e. "50"
-          @scale_threshold_pct = deployment_config.metadata.annotations["metric_scaler_scale_threshold_pct"]&.to_i # i.e. "20"
-        end
-
-        def configured?
-          @current_metric_name && @max_metric_name && @max_replicas && @min_replicas && @target_usage_pct && @scale_threshold_pct
-        end
-
         def scale_to_desired_replicas
           return unless configured?
 
@@ -97,6 +82,23 @@ module TopologicalInventory
           # Wait for scaling to complete in Openshift
           sleep(1) until pod_ips.length == desired_count
           logger.info("Scaling #{deployment_config_name} complete")
+        end
+
+        private
+
+        def moving_usage
+          @moving_usage ||= FixedLengthArray.new(60)
+        end
+
+        def configure
+          logger.info("Fetching configuration for #{deployment_config_name}")
+          @deployment_config   = object_manager.get_deployment_config(deployment_config_name)
+          @current_metric_name = deployment_config.metadata.annotations["metric_scaler_current_metric_name"]       # i.e. "topological_inventory_api_puma_busy_threads"
+          @max_metric_name     = deployment_config.metadata.annotations["metric_scaler_max_metric_name"]           # i.e. "topological_inventory_api_puma_max_threads"
+          @max_replicas        = deployment_config.metadata.annotations["metric_scaler_max_replicas"]&.to_i        # i.e. "5"
+          @min_replicas        = deployment_config.metadata.annotations["metric_scaler_min_replicas"]&.to_i        # i.e. "1"
+          @target_usage_pct    = deployment_config.metadata.annotations["metric_scaler_target_usage_pct"]&.to_i    # i.e. "50"
+          @scale_threshold_pct = deployment_config.metadata.annotations["metric_scaler_scale_threshold_pct"]&.to_i # i.e. "20"
         end
 
         def desired_replicas
@@ -113,8 +115,6 @@ module TopologicalInventory
           endpoint = object_manager.get_endpoint(deployment_config_name)
           endpoint.subsets.flat_map { |s| s.addresses.collect { |a| a[:ip] } }
         end
-
-        private
 
         class FixedLengthArray
           attr_reader :max_size, :values
