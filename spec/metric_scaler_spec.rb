@@ -17,13 +17,13 @@ describe TopologicalInventory::Orchestrator::MetricScaler do
   end
 
   def rest_client_response(busy, max)
-    <<~EOS
+    <<~END_OF_METRIC_RESPONSE
       # HELP some help text
       # TYPE Some other description
 
       topological_inventory_api_puma_busy_threads #{busy}
       topological_inventory_api_puma_max_threads #{max}
-    EOS
+    END_OF_METRIC_RESPONSE
   end
 
   it "skips deployment configs that aren't fully configured" do
@@ -40,93 +40,89 @@ describe TopologicalInventory::Orchestrator::MetricScaler do
     instance.run_once
   end
 
-  it "skips when no changes need to be made" do
-    deployment     = double("deployment", :metadata => double("metadata", :name => "deployment", :annotations => annotations), :spec => double("spec", :replicas => 1))
-    endpoint       = double("endpoint", :subsets => [double("subset", :addresses => [{:ip => "192.0.2.1"}])])
-    object_manager = double("TopologicalInventory::Orchestrator::ObjectManager", :get_deployment_configs => [deployment])
-    expect(TopologicalInventory::Orchestrator::ObjectManager).to receive(:new).and_return(object_manager)
+  context "configured" do
+    let(:replicas) { 2 }
+    let(:deployment) { double("deployment", :metadata => double("metadata", :name => "deployment-#{rand(100..500)}", :annotations => annotations), :spec => double("spec", :replicas => replicas)) }
+    let(:object_manager) { double("TopologicalInventory::Orchestrator::ObjectManager", :get_deployment_configs => [deployment], :get_deployment_config => deployment) }
+    let(:watcher) { described_class::Watcher.new(deployment.metadata.name, logger) }
+    let(:moving_usage) { watcher.send(:moving_usage) }
 
-    expect(logger).to receive(:info).with("TopologicalInventory::Orchestrator::MetricScaler#run_once Starting...")
-    expect(object_manager).to receive(:get_endpoint).with(deployment.metadata.name).and_return(endpoint)
-    expect(logger).to receive(:info).with("Metrics scaling enabled for #{deployment.metadata.name}")
-    expect(RestClient).to receive(:get).with("http://192.0.2.1:9394/metrics").and_return(rest_client_response(1, 5))
-    expect(logger).to receive(:info).with("Fetching configuration for deployment")
-    expect(logger).to receive(:info).with("deployment consuming 1.0 of 5.0, 20.0%")
-    expect(logger).to receive(:info).with("TopologicalInventory::Orchestrator::MetricScaler#run_once Complete")
+    before { allow(TopologicalInventory::Orchestrator::ObjectManager).to receive(:new).and_return(object_manager) }
 
-    instance.run_once
-  end
+    describe "#desired_replicas" do
+      it "with no usage data" do
+        expect(watcher.send(:desired_replicas)).to eq(1)
+      end
 
-  it "scales up when necessary" do
-    deployment     = double("deployment", :metadata => double("metadata", :name => "deployment", :annotations => annotations), :spec => double("spec", :replicas => 1))
-    endpoint       = double("endpoint", :subsets => [double("subset", :addresses => [{:ip => "192.0.2.1"}])])
-    object_manager = double("TopologicalInventory::Orchestrator::ObjectManager", :get_deployment_configs => [deployment])
-    expect(TopologicalInventory::Orchestrator::ObjectManager).to receive(:new).and_return(object_manager)
+      it "low usage" do
+        moving_usage << 0.0
 
-    expect(logger).to receive(:info).with("TopologicalInventory::Orchestrator::MetricScaler#run_once Starting...")
-    expect(object_manager).to receive(:get_endpoint).with(deployment.metadata.name).and_return(endpoint)
-    expect(logger).to receive(:info).with("Metrics scaling enabled for #{deployment.metadata.name}")
-    expect(RestClient).to receive(:get).with("http://192.0.2.1:9394/metrics").and_return(rest_client_response(4, 5))
-    expect(logger).to receive(:info).with("deployment consuming 4.0 of 5.0, 80.0%")
-    expect(object_manager).to receive(:scale).with(deployment.metadata.name, 2).once
-    expect(logger).to receive(:info).with("Scaling deployment to 2 replicas")
-    expect(logger).to receive(:info).with("TopologicalInventory::Orchestrator::MetricScaler#run_once Complete")
+        expect(watcher.send(:desired_replicas)).to eq(1)
+      end
 
-    instance.run_once
-  end
+      it "level usage" do
+        moving_usage << 50.0
 
-  it "scales down when necessary" do
-    deployment     = double("deployment", :metadata => double("metadata", :name => "deployment", :annotations => annotations), :spec => double("spec", :replicas => 2))
-    endpoint       = double("endpoint", :subsets => [double("subset", :addresses => [{:ip => "192.0.2.1"}, {:ip => "192.0.2.2"}])])
-    object_manager = double("TopologicalInventory::Orchestrator::ObjectManager", :get_deployment_configs => [deployment])
-    expect(TopologicalInventory::Orchestrator::ObjectManager).to receive(:new).and_return(object_manager)
+        expect(watcher.send(:desired_replicas)).to eq(2)
+      end
 
-    expect(logger).to receive(:info).with("TopologicalInventory::Orchestrator::MetricScaler#run_once Starting...")
-    expect(object_manager).to receive(:get_endpoint).with(deployment.metadata.name).and_return(endpoint)
-    expect(logger).to receive(:info).with("Metrics scaling enabled for #{deployment.metadata.name}")
-    expect(RestClient).to receive(:get).with("http://192.0.2.1:9394/metrics").and_return(rest_client_response(1, 5))
-    expect(RestClient).to receive(:get).with("http://192.0.2.2:9394/metrics").and_return(rest_client_response(1, 5))
-    expect(logger).to receive(:info).with("deployment consuming 2.0 of 10.0, 20.0%")
-    expect(object_manager).to receive(:scale).with(deployment.metadata.name, 1).once
-    expect(logger).to receive(:info).with("Scaling deployment to 1 replicas")
-    expect(logger).to receive(:info).with("TopologicalInventory::Orchestrator::MetricScaler#run_once Complete")
+      it "high usage" do
+        moving_usage << 80.0
 
-    instance.run_once
-  end
+        expect(watcher.send(:desired_replicas)).to eq(3)
+      end
 
-  it "won't scale below the minimum" do
-    deployment     = double("deployment", :metadata => double("metadata", :name => "deployment", :annotations => annotations.merge("metric_scaler_min_replicas" => 2)), :spec => double("spec", :replicas => 2))
-    endpoint       = double("endpoint", :subsets => [double("subset", :addresses => [{:ip => "192.0.2.1"}, {:ip => "192.0.2.2"}])])
-    object_manager = double("TopologicalInventory::Orchestrator::ObjectManager", :get_deployment_configs => [deployment])
-    expect(TopologicalInventory::Orchestrator::ObjectManager).to receive(:new).and_return(object_manager)
+      context "at minimum replicas" do
+        let(:replicas) { 1 }
 
-    expect(logger).to receive(:info).with("TopologicalInventory::Orchestrator::MetricScaler#run_once Starting...")
-    expect(object_manager).to receive(:get_endpoint).with(deployment.metadata.name).and_return(endpoint)
-    expect(logger).to receive(:info).with("Metrics scaling enabled for #{deployment.metadata.name}")
-    expect(RestClient).to receive(:get).with("http://192.0.2.1:9394/metrics").and_return(rest_client_response(0, 5))
-    expect(RestClient).to receive(:get).with("http://192.0.2.2:9394/metrics").and_return(rest_client_response(0, 5))
-    expect(logger).to receive(:info).with("deployment consuming 0.0 of 10.0, 0.0%")
-    expect(object_manager).not_to receive(:scale)
-    expect(logger).to receive(:info).with("TopologicalInventory::Orchestrator::MetricScaler#run_once Complete")
+        it "won't scale below the minimum" do
+          moving_usage << 0.0
 
-    instance.run_once
-  end
+          expect(watcher.send(:desired_replicas)).to eq(1)
+        end
+      end
 
-  it "won't scale above the maximum" do
-    deployment     = double("deployment", :metadata => double("metadata", :name => "deployment", :annotations => annotations.merge("metric_scaler_max_replicas" => 2)), :spec => double("spec", :replicas => 2))
-    endpoint       = double("endpoint", :subsets => [double("subset", :addresses => [{:ip => "192.0.2.1"}, {:ip => "192.0.2.2"}])])
-    object_manager = double("TopologicalInventory::Orchestrator::ObjectManager", :get_deployment_configs => [deployment])
-    expect(TopologicalInventory::Orchestrator::ObjectManager).to receive(:new).and_return(object_manager)
+      context "at maximum replicas" do
+        let(:replicas) { 5 }
 
-    expect(logger).to receive(:info).with("TopologicalInventory::Orchestrator::MetricScaler#run_once Starting...")
-    expect(object_manager).to receive(:get_endpoint).with(deployment.metadata.name).and_return(endpoint)
-    expect(logger).to receive(:info).with("Metrics scaling enabled for #{deployment.metadata.name}")
-    expect(RestClient).to receive(:get).with("http://192.0.2.1:9394/metrics").and_return(rest_client_response(5, 5))
-    expect(RestClient).to receive(:get).with("http://192.0.2.2:9394/metrics").and_return(rest_client_response(5, 5))
-    expect(logger).to receive(:info).with("deployment consuming 10.0 of 10.0, 100.0%")
-    expect(object_manager).not_to receive(:scale)
-    expect(logger).to receive(:info).with("TopologicalInventory::Orchestrator::MetricScaler#run_once Complete")
+        it "won't scale above the maximum" do
+          moving_usage << 100.0
 
-    instance.run_once
+          expect(watcher.send(:desired_replicas)).to eq(5)
+        end
+      end
+    end
+
+    describe "#scale_to_desired_replicas" do
+      it "no change necessary" do
+        expect(watcher).to receive(:desired_replicas).and_return(2)
+
+        expect(logger).not_to receive(:info).with("Scaling #{deployment.metadata.name} to 2 replicas")
+
+        watcher.scale_to_desired_replicas
+      end
+
+      it "will scale down" do
+        expect(watcher).to receive(:desired_replicas).and_return(1)
+
+        expect(logger).to receive(:info).with("Scaling #{deployment.metadata.name} to 1 replicas")
+        expect(object_manager).to receive(:scale).with(deployment.metadata.name, 1)
+        subsets = [double("subset", :addresses => [{:ip => "192.0.2.0"}])]
+        expect(object_manager).to receive(:get_endpoint).with(deployment.metadata.name).and_return(double("endpoint", :subsets => subsets))
+
+        watcher.scale_to_desired_replicas
+      end
+
+      it "will scale down" do
+        expect(watcher).to receive(:desired_replicas).and_return(3)
+
+        expect(logger).to receive(:info).with("Scaling #{deployment.metadata.name} to 3 replicas")
+        expect(object_manager).to receive(:scale).with(deployment.metadata.name, 3)
+        subsets = [double("subset", :addresses => [{:ip => "192.0.2.0"}]), double("subset", :addresses => [{:ip => "192.0.2.1"}, {:ip => "192.0.2.2"}])]
+        expect(object_manager).to receive(:get_endpoint).with(deployment.metadata.name).and_return(double("endpoint", :subsets => subsets))
+
+        watcher.scale_to_desired_replicas
+      end
+    end
   end
 end
