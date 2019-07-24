@@ -23,7 +23,7 @@ module TopologicalInventory
               break unless configured?
 
               60.times do # Collect metrics for ~1 minute then check for config changes
-                moving_usage << percent_usage_from_metrics
+                metrics << percent_usage_from_metrics
                 sleep 1
               end
             end
@@ -53,8 +53,8 @@ module TopologicalInventory
 
         private
 
-        def moving_usage
-          @moving_usage ||= begin
+        def metrics
+          @metrics ||= begin
             require "topological_inventory/orchestrator/fixed_length_array"
             TopologicalInventory::Orchestrator::FixedLengthArray.new(60)
           end
@@ -72,7 +72,7 @@ module TopologicalInventory
         end
 
         def desired_replicas
-          deviation = moving_usage.average.to_f - @target_usage_pct
+          deviation = metrics.average.to_f - @target_usage_pct
           count     = deployment_config.spec.replicas
 
           return count if deviation.abs < @scale_threshold_pct # Within tolerance

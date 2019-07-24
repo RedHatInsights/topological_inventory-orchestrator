@@ -17,7 +17,7 @@ describe TopologicalInventory::Orchestrator::MetricScaler::Watcher do
 
   context "configured" do
     let(:deployment)     { double("deployment", :metadata => double("metadata", :name => "deployment-#{rand(100..500)}", :annotations => annotations), :spec => double("spec", :replicas => replicas)) }
-    let(:moving_usage)   { watcher.send(:moving_usage) }
+    let(:metrics)        { watcher.send(:metrics) }
     let(:object_manager) { double("TopologicalInventory::Orchestrator::ObjectManager", :get_deployment_configs => [deployment], :get_deployment_config => deployment) }
     let(:replicas)       { 2 }
     let(:watcher)        { described_class.new(deployment.metadata.name, logger) }
@@ -30,19 +30,19 @@ describe TopologicalInventory::Orchestrator::MetricScaler::Watcher do
       end
 
       it "low usage" do
-        moving_usage << 0.0
+        metrics << 0.0
 
         expect(watcher.send(:desired_replicas)).to eq(1)
       end
 
       it "level usage" do
-        moving_usage << 50.0
+        metrics << 50.0
 
         expect(watcher.send(:desired_replicas)).to eq(2)
       end
 
       it "high usage" do
-        moving_usage << 80.0
+        metrics << 80.0
 
         expect(watcher.send(:desired_replicas)).to eq(3)
       end
@@ -51,7 +51,7 @@ describe TopologicalInventory::Orchestrator::MetricScaler::Watcher do
         let(:replicas) { 1 }
 
         it "won't scale below the minimum" do
-          moving_usage << 0.0
+          metrics << 0.0
 
           expect(watcher.send(:desired_replicas)).to eq(1)
         end
@@ -61,7 +61,7 @@ describe TopologicalInventory::Orchestrator::MetricScaler::Watcher do
         let(:replicas) { 5 }
 
         it "won't scale above the maximum" do
-          moving_usage << 100.0
+          metrics << 100.0
 
           expect(watcher.send(:desired_replicas)).to eq(5)
         end
