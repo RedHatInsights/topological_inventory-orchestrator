@@ -87,7 +87,10 @@ module TopologicalInventory
         private
 
         def moving_usage
-          @moving_usage ||= FixedLengthArray.new(60)
+          @moving_usage ||= begin
+            require "topological_inventory/orchestrator/fixed_length_array"
+            TopologicalInventory::Orchestrator::FixedLengthArray.new(60)
+          end
         end
 
         def configure
@@ -114,24 +117,6 @@ module TopologicalInventory
         def pod_ips
           endpoint = object_manager.get_endpoint(deployment_config_name)
           endpoint.subsets.flat_map { |s| s.addresses.collect { |a| a[:ip] } }
-        end
-
-        class FixedLengthArray
-          attr_reader :max_size, :values
-
-          def initialize(max_size)
-            @max_size = max_size
-            @values = []
-          end
-
-          def <<(new_value)
-            @values.tap { |a| a.pop if a.length == max_size }.unshift(new_value)
-          end
-
-          def average
-            return nil if values.empty?
-            values.sum / values.size
-          end
         end
 
         def object_manager
