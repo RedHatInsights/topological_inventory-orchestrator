@@ -125,7 +125,7 @@ module TopologicalInventory
           end
 
           def <<(new_value)
-            @values = values.unshift(new_value)[0...max_size]
+            @values.tap { |a| a.pop if a.length == max_size }.unshift(new_value)
           end
 
           def average
