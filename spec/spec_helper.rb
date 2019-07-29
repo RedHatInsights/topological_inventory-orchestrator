@@ -99,4 +99,7 @@ RSpec.configure do |config|
 =end
 end
 
+require "helpers/mock_data"
+require "helpers/functions"
 require 'topological_inventory-orchestrator'
+require "topological_inventory/orchestrator/test_models/object_manager"

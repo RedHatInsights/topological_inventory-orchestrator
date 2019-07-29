@@ -1,34 +1,45 @@
 require "active_support/core_ext/enumerable"
 require "base64"
+require "config"
 require "json"
-require "manageiq-loggers"
 require "manageiq-password"
 require "more_core_extensions/core_ext/hash"
 require "rest-client"
 require "yaml"
 
+require "topological_inventory/orchestrator/logger"
 require "topological_inventory/orchestrator/object_manager"
+require "topological_inventory/orchestrator/api"
+require "topological_inventory/orchestrator/config_map"
+require "topological_inventory/orchestrator/deployment_config"
+require "topological_inventory/orchestrator/secret"
+require "topological_inventory/orchestrator/source_type"
+require "topological_inventory/orchestrator/source"
+
 
 module TopologicalInventory
   module Orchestrator
+    # Entrypoint
+    # Each 10 seconds it synchronizes Sources/Topological db with Openshift pods
     class Worker
+      include Logging
+
       ORCHESTRATOR_TENANT = "system_orchestrator".freeze
 
-      attr_reader :logger, :collector_image_tag, :sources_api, :sources_internal_api, :topology_api, :topology_internal_api
+      attr_reader :collector_image_tag, :api
 
-      def initialize(collector_image_tag:, sources_api:, topology_api:)
+      def initialize(collector_image_tag:, sources_api:, topology_api:, config_name: 'default')
         @collector_image_tag = collector_image_tag
 
-        @logger = ManageIQ::Loggers::CloudWatch.new
+        self.config_name = config_name
+        initialize_config
 
-        @sources_api = sources_api
-        @sources_internal_api = URI.parse(sources_api).tap { |uri| uri.path = "/internal/v1.0" }.to_s
-
-        @topology_api = topology_api
-        @topology_internal_api = URI.parse(topology_api).tap { |uri| uri.path = "/internal/v1.0" }.to_s
+        @api = Api.new(:sources_api => sources_api, :topology_api => topology_api)
       end
 
       def run
+        remove_single_source_deployments
+
         loop do
           make_openshift_match_database
 
@@ -38,257 +49,237 @@ module TopologicalInventory
 
       private
 
-      def digest(object)
-        require 'digest'
-        Digest::SHA1.hexdigest(Marshal.dump(object))
+      # Removing of (old) single-source deployment configs
+      # TODO: can be removed after first deployment
+      def remove_single_source_deployments
+        dcs = object_manager.get_deployment_configs("topological-inventory/collector=true").select do |dc|
+          dc.metadata.labels[TopologicalInventory::Orchestrator::DeploymentConfig::LABEL_DIGEST].present?
+        end
+
+        dcs.each do |dc|
+          object_manager.delete_deployment_config(dc.metadata.name)
+        end
       end
 
       def make_openshift_match_database
-        collector_hash = collectors_from_sources_api
+        # Assign sources_per_collector from config
+        load_source_types
 
-        expected_digests = collector_hash.keys
-        current_digests  = collector_digests_from_openshift
+        # Load sources, assign source_types, mark found_in_api: true
+        load_sources
 
-        logger.info("Checking...")
+        # Assign source types and sources
+        load_config_maps
 
-        (current_digests - expected_digests).each { |i| remove_openshift_objects_for_source(i) }
-        (expected_digests - current_digests).each { |i| create_openshift_objects_for_source(i, collector_hash[i]) }
+        # Assign config maps
+        load_secrets
 
-        logger.info("Checking... complete.")
-      end
+        # Assign config maps
+        load_deployment_configs
 
-      ### API STUFF
-      def each_source
-        source_types_by_id = each_resource(sources_api_url_for("source_types")).index_by { |source_type| source_type["id"] }
+        # Adds or removes sources to/from openshift
+        manage_openshift_collectors
 
-        each_tenant do |tenant|
-          # Query applications for the supported application_types, then later we can check if the source
-          # has any supported applications from this hash
-          applications_by_source_id = each_resource(supported_applications_url, tenant).group_by { |application| application["source_id"] }
-
-          each_resource(topology_api_url_for("sources"), tenant) do |topology_source|
-            source = get_and_parse(sources_api_url_for("sources", topology_source["id"]), tenant)
-            next if source.nil?
-
-            source_type = source_types_by_id[source["source_type_id"]]
-
-            next unless (collector_definition = collector_definitions[source_type["name"]])
-
-            applications_for_source = applications_by_source_id[source["id"]]
-            next if applications_for_source.nil? || applications_for_source.empty?
-
-            endpoints = get_and_parse(sources_api_url_for("sources", source["id"], "endpoints"), tenant)
-            next unless (endpoint = endpoints&.dig("data")&.first)
-
-            authentications = get_and_parse(sources_api_url_for("endpoints", endpoint["id"], "authentications"), tenant)
-            next unless (authentication = authentications&.dig("data")&.first)
-
-            auth = authentication_with_password(authentication["id"], tenant)
-            next if auth.nil?
-
-            yield source, endpoint, auth, collector_definition, tenant
-          end
-        end
-      end
-
-      def collectors_from_sources_api
-        hash = {}
-        each_source do |source, endpoint, authentication, collector_definition, tenant|
-          value = {
-            "endpoint_host"   => endpoint["host"],
-            "endpoint_path"   => endpoint["path"],
-            "endpoint_port"   => endpoint["port"].to_s,
-            "endpoint_scheme" => endpoint["scheme"],
-            "image"           => collector_definition["image"],
-            "image_namespace" => ENV["IMAGE_NAMESPACE"],
-            "source_id"       => source["id"],
-            "source_uid"      => source["uid"],
-            "secret"          => {
-              "password" => authentication["password"],
-              "username" => authentication["username"],
-            },
-            "tenant"          => tenant,
-          }
-          key = digest(value)
-          hash[key] = value
-        end
-        hash
-      end
-
-      def sources_api_url_for(*path)
-        File.join(sources_api, *path)
-      end
-
-      def sources_internal_url_for(path)
-        File.join(sources_internal_api, path)
-      end
-
-      def topology_api_url_for(path)
-        File.join(topology_api, path)
-      end
-
-      def topology_internal_url_for(*path)
-        File.join(topology_internal_api, *path)
-      end
-
-      def each_resource(url, tenant_account = ORCHESTRATOR_TENANT, &block)
-        return enum_for(:each_resource, url, tenant_account) unless block_given?
-
-        return if url.nil?
-
-        response = get_and_parse(url, tenant_account)
-        paging = response.kind_of?(Hash)
-
-        resources = paging ? response["data"] : response
-        resources.each { |i| yield i }
-
-        return unless paging
-
-        next_page_link = response.fetch_path("links", "next")
-        return unless next_page_link
-
-        next_url = URI.parse(url).merge(next_page_link).to_s
-
-        each_resource(next_url, tenant_account, &block)
-      end
-
-      def get_and_parse(url, tenant_account = ORCHESTRATOR_TENANT)
-        JSON.parse(
-          RestClient.get(url, tenant_header(tenant_account))
-        )
-      rescue RestClient::NotFound
-        nil
-      end
-
-      def tenant_header(tenant_account)
-        {"x-rh-identity" => Base64.strict_encode64({"identity" => {"account_number" => tenant_account}}.to_json)}
-      end
-
-      def each_tenant
-        each_resource(topology_internal_url_for("tenants")) { |tenant| yield tenant["external_tenant"] }
-      end
-
-      def each_application_type
-        each_resource(sources_api_url_for("application_types"))
-      end
-
-      # Set of ids for supported applications
-      def supported_application_type_ids
-        topology_app_name = "/insights/platform/topological-inventory"
-
-        each_application_type.select do |application_type|
-          application_type["name"] == topology_app_name || application_type["dependent_applications"].include?(topology_app_name)
-        end.map do |application_type|
-          application_type["id"]
-        end
-      end
-
-      # URL to get a list of applications for supported application types
-      def supported_applications_url
-        query = URI.escape(supported_application_type_ids.map { |id| "filter[application_type_id][eq][]=#{id}" }.join("&"))
-        sources_api_url_for("applications?#{query}")
-      end
-
-      # HACK: for Authentications
-      def authentication_with_password(id, tenant_account)
-        get_and_parse(sources_internal_url_for("/authentications/#{id}?expose_encrypted_attribute[]=password"), tenant_account)
-      end
-
-      ### ------------------
-      ### Orchestrator Stuff
-      ###
-      def collector_definitions
-        @collector_definitions ||= begin
-          {
-            "amazon"        => {
-              "image" => "topological-inventory-amazon:#{collector_image_tag}"
-            },
-            "ansible-tower" => {
-              "image" => "topological-inventory-ansible-tower:#{collector_image_tag}"
-            },
-            "openshift"     => {
-              "image" => "topological-inventory-openshift:#{collector_image_tag}"
-            },
-          }
-        end
+        # Remove unused openshift objects
+        remove_old_deployments
+        remove_old_secrets
       end
 
       def object_manager
         @object_manager ||= ObjectManager.new
       end
 
-      ### ---------------
-      ### Openshift stuff
-      ###
-      def collector_digests_from_openshift
-        object_manager.get_deployment_configs("topological-inventory/collector=true").collect { |i| i.metadata.labels["topological-inventory/collector_digest"] }
-      end
+      attr_accessor :config_name,
+                    :source_types_by_id, :sources_by_digest,
+                    :config_maps_by_uid, :deployment_configs, :secrets
 
-      def create_openshift_objects_for_source(digest, source)
-        logger.info("Creating objects for source #{source["source_id"]} with digest #{digest}")
+      def load_source_types
+        @source_types_by_id = {}
 
-        secret_name = collector_deployment_secret_name_for_source(source)
-        object_manager.create_secret(secret_name, source["secret"])
-        logger.info("Secret #{secret_name} created for source #{source["source_id"]}")
-
-        deployment_config_name = collector_deployment_name_for_source(source)
-        object_manager.create_deployment_config(deployment_config_name, source["image_namespace"], source["image"]) do |d|
-          d[:metadata][:labels]["topological-inventory/collector_digest"] = digest
-          d[:metadata][:labels]["topological-inventory/collector"] = "true"
-          d[:spec][:replicas] = 1
-          container = d[:spec][:template][:spec][:containers].first
-          container[:env] = collector_container_environment(source)
+        @api.each_source_type do |attributes|
+          @source_types_by_id[attributes['id']] = SourceType.new(attributes)
+          logger.debug("Loaded Source type: #{attributes['name']} | #{@source_types_by_id[attributes['id']].sources_per_collector} sources per config map")
         end
-        logger.info("DeploymentConfig #{deployment_config_name} created for source #{source["source_id"]}")
-      rescue TopologicalInventory::Orchestrator::ObjectManager::QuotaError
-        update_topological_inventory_source_refresh_status(source, "quota_limited")
-        logger.info("Skipping Deployment Config creation for source #{source["source_id"]} because it would exceed quota.")
-      else
-        update_topological_inventory_source_refresh_status(source, "deployed")
       end
 
-      def update_topological_inventory_source_refresh_status(source, refresh_status)
-        RestClient.patch(
-          topology_internal_url_for("sources", source["source_id"]),
-          {:refresh_status => refresh_status}.to_json,
-          tenant_header(source["tenant"])
-        )
-      rescue RestClient::NotFound
-        logger.error("Failed to update 'refresh_status' on source #{source["source_id"]}")
+      # Loads Sources from Topological API and Sources API
+      # Also loads endpoint and credentials for each source
+      def load_sources
+        @sources_by_digest = {}
+
+        @api.each_source do |attributes, tenant|
+          if (source_type = @source_types_by_id[attributes['source_type_id']]).nil?
+            logger.error("Source #{attributes['id']}: Source Type not found (#{attributes['source_type_id']})")
+            next
+          end
+
+          if (collector_definition = source_type.collector_definition(collector_image_tag)).nil?
+            logger.debug("Source #{attributes['id']}: Source Type not supported (#{source_type['name']})")
+            next
+          end
+
+          Source.new(attributes, tenant, source_type, collector_definition, :from_sources_api => true).tap do |source|
+            source.load_credentials(@api)
+
+            if source.digest.present?
+              @sources_by_digest[source.digest] = source
+            else
+              logger.error("Source #{source} invalid, no data for digest")
+            end
+          end
+        end
+
+        logger.debug("Sources loaded: #{@sources_by_digest.values.count}")
       end
 
-      def remove_openshift_objects_for_source(digest)
-        return unless digest
+      # Load config maps from OpenShift and pairs them with
+      # - source types collected from API
+      # - sources collected from API
+      def load_config_maps
+        @config_maps_by_uid = {}
 
-        deployment = object_manager.get_deployment_configs("topological-inventory/collector_digest=#{digest}").detect { |i| i.metadata.labels["topological-inventory/collector"] == "true" }
-        return unless deployment
+        object_manager.get_config_maps("#{ConfigMap::LABEL_COMMON}=true").each do |openshift_object|
+          config_map = ConfigMap.new(object_manager, openshift_object)
+          @config_maps_by_uid[config_map.uid] = config_map
 
-        logger.info("Removing deployment config #{deployment.metadata.name}")
-        object_manager.delete_deployment_config(deployment.metadata.name)
-        logger.info("Removing secret #{deployment.metadata.name}-secrets")
-        object_manager.delete_secret("#{deployment.metadata.name}-secrets")
+          config_map.assign_source_type!(@source_types_by_id.values)
+
+          # Assign sources by digest (or create new source)
+          config_map.associate_sources(@sources_by_digest)
+        end
+
+        logger.debug("ConfigMaps loaded: #{@config_maps_by_uid.values.count}")
       end
 
-      def collector_deployment_name_for_source(source)
-        "topological-inventory-collector-source-#{source["source_id"]}"
+      # Loads deployment configs(DC) from Openshift and pairs them with config maps
+      # Then creates deployment configs for config maps which doesn't have it's associated DC (i.e. manually deleted)
+      def load_deployment_configs
+        @deployment_configs = []
+
+        object_manager.get_deployment_configs("#{DeploymentConfig::LABEL_COMMON}=true").each do |openshift_object|
+          deployment_config = DeploymentConfig.new(object_manager, openshift_object)
+          @deployment_configs << deployment_config
+
+          next if deployment_config.uid.nil?
+
+          if (map = @config_maps_by_uid[deployment_config.uid]).present?
+            map.deployment_config = deployment_config
+            deployment_config.config_map = map
+          end
+        end
+
+        create_missing_deployment_configs
+
+        logger.debug("DeploymentConfigs loaded: #{@deployment_configs.count}")
       end
 
-      def collector_deployment_secret_name_for_source(source)
-        "#{collector_deployment_name_for_source(source)}-secrets"
+      # Loads secrets from Openshift and pairs them with config maps
+      # Then creates secrets for config maps which doesn't have it's associated secret (i.e. manually deleted)
+      def load_secrets
+        @secrets = []
+
+        object_manager.get_secrets("#{Secret::LABEL_COMMON}=true").each do |openshift_object|
+          secret = Secret.new(object_manager, openshift_object)
+          @secrets << secret
+
+          next if secret.uid.nil?
+
+          if (map = @config_maps_by_uid[secret.uid]).present?
+            map.secret = secret
+            secret.config_map = map
+          end
+        end
+
+        create_missing_secrets
+
+        logger.debug("Secrets loaded: #{@secrets.count}")
       end
 
-      def collector_container_environment(source)
-        secret_name = collector_deployment_secret_name_for_source(source)
-        [
-          {:name => "AUTH_PASSWORD", :valueFrom => {:secretKeyRef => {:name => secret_name, :key => "password"}}},
-          {:name => "AUTH_USERNAME", :valueFrom => {:secretKeyRef => {:name => secret_name, :key => "username"}}},
-          {:name => "ENDPOINT_HOST", :value => source["endpoint_host"]},
-          {:name => "ENDPOINT_PATH", :value => source["endpoint_path"]},
-          {:name => "ENDPOINT_PORT", :value => source["endpoint_port"]},
-          {:name => "ENDPOINT_SCHEME", :value => source["endpoint_scheme"]},
-          {:name => "INGRESS_API", :value => "http://#{ENV["TOPOLOGICAL_INVENTORY_INGRESS_API_SERVICE_HOST"]}:#{ENV["TOPOLOGICAL_INVENTORY_INGRESS_API_SERVICE_PORT"]}"},
-          {:name => "SOURCE_UID",  :value => source["source_uid"]},
-        ]
+      # Add new sources to openshift and updates source refresh status in Topological API
+      # Remove old sources from openshift
+      def manage_openshift_collectors
+        @sources_by_digest.values.dup.each do |source|
+          #
+          # a) source deleted from Sources API
+          #
+          if !source.from_sources_api && source.config_map.present?
+            @config_maps_by_uid.delete(source.config_map.uid) if source.config_map.present?
+            @sources_by_digest.delete(source.digest)
+
+            source.remove_from_openshift
+          #
+          # b) new source created in Sources API
+          #
+          elsif source.from_sources_api && source.config_map.nil?
+            begin
+              source.add_to_openshift(object_manager, @config_maps_by_uid.values)
+
+              @config_maps_by_uid[source.config_map.uid] = source.config_map if source.config_map.present?
+
+              @api.update_topological_inventory_source_refresh_status(source, "deployed")
+            rescue TopologicalInventory::Orchestrator::ObjectManager::QuotaError
+              @api.update_topological_inventory_source_refresh_status(source, "quota_limited")
+              logger.info("Skipping Deployment Config creation for source #{source["id"]} because it would exceed quota.")
+
+              # Remove config map and secret if they exist
+              source.remove_from_openshift
+            end
+          else
+            logger.debug("Source not changed (#{source})")
+          end
+        end
+      end
+
+      # Self recovery
+      # If config map doesn't have secret (deleted from outside), create new
+      def create_missing_secrets
+        @config_maps_by_uid.each_value do |map|
+          next if map.secret.present?
+
+          map.create_secret
+        end
+      end
+
+      # Self recovery
+      # If config map doesn't have deployment config (deleted from outside), create new
+      def create_missing_deployment_configs
+        @config_maps_by_uid.each_value do |map|
+          next if map.deployment_config.present?
+
+          begin
+            map.create_deployment_config
+          rescue TopologicalInventory::Orchestrator::ObjectManager::QuotaError
+            logger.info("Skipping Deployment Config creation for config map #{map} because it would exceed quota.")
+          end
+        end
+      end
+
+      def remove_old_deployments
+        @deployment_configs.to_a.each do |dc|
+          dc.delete_in_openshift if dc.config_map.nil?
+        end
+      end
+
+      def remove_old_secrets
+        @secrets.to_a.each do |secret|
+          secret.delete_in_openshift if secret.config_map.nil?
+        end
+      end
+
+      def initialize_config
+        config_file = File.join(self.class.path_to_config, "#{sanitize_filename(config_name)}.yml")
+        raise "Configuration file #{config_file} doesn't exist" unless File.exist?(config_file)
+
+        ::Config.load_and_set_settings(config_file)
+      end
+
+      def self.path_to_config
+        File.expand_path("../../../config", File.dirname(__FILE__))
+      end
+
+      def sanitize_filename(filename)
+        # Remove any character that isn't 0-9, A-Z, or a-z, / or -
+        filename.gsub(/[^0-9A-Z\/\-]/i, '_')
       end
     end
   end

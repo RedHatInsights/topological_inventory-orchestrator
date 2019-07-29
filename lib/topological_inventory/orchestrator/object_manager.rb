@@ -21,23 +21,6 @@ module TopologicalInventory
         connection.patch_deployment_config(deployment_config_name, { :spec => { :replicas => replicas } }, my_namespace)
       end
 
-      def create_deployment_config(name, image_namespace, image)
-        definition = deployment_config_definition(name, image_namespace, image)
-        yield(definition) if block_given?
-        check_deployment_config_quota(definition)
-        connection.create_deployment_config(definition)
-      rescue KubeException => e
-        raise unless e.message =~ /already exists/
-      end
-
-      def create_secret(name, data)
-        definition = secret_definition(name, data)
-        yield(definition) if block_given?
-        kube_connection.create_secret(definition)
-      rescue KubeException => e
-        raise unless e.message =~ /already exists/
-      end
-
       def get_deployment_config(name)
         connection.get_deployment_config(name, my_namespace)
       end
@@ -49,8 +32,13 @@ module TopologicalInventory
         )
       end
 
-      def get_endpoint(name)
-        kube_connection.get_endpoint(name, my_namespace)
+      def create_deployment_config(name, image_namespace, image)
+        definition = deployment_config_definition(name, image_namespace, image)
+        yield(definition) if block_given?
+        check_deployment_config_quota(definition)
+        connection.create_deployment_config(definition)
+      rescue KubeException => e
+        raise unless e.message =~ /already exists/
       end
 
       def delete_deployment_config(name)
@@ -71,13 +59,59 @@ module TopologicalInventory
       rescue Kubeclient::ResourceNotFoundError
       end
 
-      def delete_replication_controller(name)
-        kube_connection.delete_replication_controller(name, my_namespace)
-      rescue Kubeclient::ResourceNotFoundError
+      def get_secrets(label_selector)
+        kube_connection.get_secrets(
+          :label_selector => label_selector,
+          :namespace      => my_namespace
+        )
+      end
+
+      def create_secret(name, data)
+        definition = secret_definition(name, data)
+        yield(definition) if block_given?
+        kube_connection.create_secret(definition)
+      rescue KubeException => e
+        raise unless e.message =~ /already exists/
+      end
+
+      def update_secret(secret)
+        kube_connection.update_secret(secret)
       end
 
       def delete_secret(name)
         kube_connection.delete_secret(name, my_namespace)
+      rescue Kubeclient::ResourceNotFoundError
+      end
+
+      def create_config_map(name)
+        definition = config_map_definition(name)
+        yield(definition) if block_given?
+        kube_connection.create_config_map(definition)
+      rescue KubeException => e
+        raise unless e.message =~ /already exists/
+      end
+
+      def get_config_maps(label_selector)
+        kube_connection.get_config_maps(
+          :label_selector => label_selector,
+          :namespace      => my_namespace
+        )
+      end
+
+      def update_config_map(map)
+        kube_connection.update_config_map(map)
+      end
+
+      def delete_config_map(name)
+        kube_connection.delete_config_map(name, my_namespace)
+      end
+
+      def get_endpoint(name)
+        kube_connection.get_endpoint(name, my_namespace)
+      end
+
+      def delete_replication_controller(name)
+        kube_connection.delete_replication_controller(name, my_namespace)
       rescue Kubeclient::ResourceNotFoundError
       end
 
@@ -152,11 +186,24 @@ module TopologicalInventory
           memory_request += container.dig(:resources, :requests, :memory).iec_60027_2_to_i
         end
         raise(QuotaMemoryRequestExceeded) if memory_request >= quota_status.hard["requests.memory"].iec_60027_2_to_i
+
+      rescue Kubeclient::ResourceNotFoundError
       end
 
       def cpu_string_to_millicores(input)
         match = input.match(/(?<number>\d+)(?<suffix>m?)/)
         match[:suffix].empty? ? (match[:number].to_i * 1000) : match[:number].to_i
+      end
+
+      def config_map_definition(name)
+        {
+          :metadata => {
+            :name      => name,
+            :labels    => {:app => app_name},
+            :namespace => my_namespace,
+          },
+          :data     => {}
+        }
       end
 
       def deployment_config_definition(name, image_namespace, image)
@@ -195,7 +242,8 @@ module TopologicalInventory
                       :memory => "200Mi"
                     }
                   }
-                }]
+                }],
+                :volumes    => []
               }
             },
             :triggers => [{
