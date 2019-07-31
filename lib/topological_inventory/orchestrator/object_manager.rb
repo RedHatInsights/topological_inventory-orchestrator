@@ -30,11 +30,19 @@ module TopologicalInventory
         raise unless e.message =~ /already exists/
       end
 
+      def get_deployment_config(name)
+        connection.get_deployment_config(name, my_namespace)
+      end
+
       def get_deployment_configs(label_selector)
         connection.get_deployment_configs(
           :label_selector => label_selector,
           :namespace      => my_namespace
         )
+      end
+
+      def get_endpoint(name)
+        kube_connection.get_endpoint(name, my_namespace)
       end
 
       def delete_deployment_config(name)
@@ -113,10 +121,10 @@ module TopologicalInventory
                 :name        => name
               },
               :spec     => {
-                :containers         => [{
-                  :name          => name,
-                  :image         => "#{image_namespace}/#{image}",
-                  :resources     => {
+                :containers => [{
+                  :name      => name,
+                  :image     => "#{image_namespace}/#{image}",
+                  :resources => {
                     :limits   => {
                       :cpu    => "50m",
                       :memory => "400Mi"

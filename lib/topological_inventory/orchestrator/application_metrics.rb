@@ -8,9 +8,9 @@ module TopologicalInventory
   module Orchestrator
     class ApplicationMetrics
       def initialize(port = 9394)
-        return if port == 0
+        return if port.zero?
 
-        configure_server(port) 
+        configure_server(port)
         configure_metrics
       end
 
