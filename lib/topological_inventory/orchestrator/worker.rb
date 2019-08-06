@@ -204,6 +204,8 @@ module TopologicalInventory
           container = d[:spec][:template][:spec][:containers].first
           container[:env] = collector_container_environment(source)
         end
+      rescue QuotaError
+        logger.info("Skipping Deployment Config creation for source #{source["source_id"]} because it would exceed quota.")
       end
 
       def remove_openshift_objects_for_source(digest)
