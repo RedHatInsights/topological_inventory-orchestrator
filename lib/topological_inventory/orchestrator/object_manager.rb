@@ -1,10 +1,17 @@
 require "kubeclient"
+require "more_core_extensions/core_ext/string/iec60027_2"
 
 module TopologicalInventory
   module Orchestrator
     class ObjectManager
       TOKEN_FILE   = "/run/secrets/kubernetes.io/serviceaccount/token".freeze
       CA_CERT_FILE = "/run/secrets/kubernetes.io/serviceaccount/ca.crt".freeze
+
+      class QuotaError < RuntimeError; end
+      class QuotaCpuLimitExceeded < QuotaError; end
+      class QuotaCpuRequestExceeded < QuotaError; end
+      class QuotaMemoryLimitExceeded < QuotaError; end
+      class QuotaMemoryRequestExceeded < QuotaError; end
 
       def self.available?
         File.exist?(TOKEN_FILE) && File.exist?(CA_CERT_FILE)
@@ -17,6 +24,7 @@ module TopologicalInventory
       def create_deployment_config(name, image_namespace, image)
         definition = deployment_config_definition(name, image_namespace, image)
         yield(definition) if block_given?
+        check_deployment_config_quota(definition)
         connection.create_deployment_config(definition)
       rescue KubeException => e
         raise unless e.message =~ /already exists/
@@ -96,6 +104,39 @@ module TopologicalInventory
           :port => ENV["KUBERNETES_SERVICE_PORT"],
           :path => path
         )
+      end
+
+      def check_deployment_config_quota(definition)
+        quota_status = kube_connection.get_resource_quota("compute-resources-non-terminating", my_namespace).status
+
+        cpu_limit = cpu_string_to_millicores(quota_status.used["limits.cpu"])
+        definition.dig(:spec, :template, :spec, :containers).each do |container|
+          cpu_limit += cpu_string_to_millicores(container.dig(:resources, :limits, :cpu))
+        end
+        raise(QuotaCpuLimitExceeded) if cpu_limit >= cpu_string_to_millicores(quota_status.hard["limits.cpu"])
+
+        cpu_request = cpu_string_to_millicores(quota_status.used["requests.cpu"])
+        definition.dig(:spec, :template, :spec, :containers).each do |container|
+          cpu_request += cpu_string_to_millicores(container.dig(:resources, :requests, :cpu))
+        end
+        raise(QuotaCpuRequestExceeded) if cpu_request >= cpu_string_to_millicores(quota_status.hard["requests.cpu"])
+
+        memory_limit = quota_status.used["limits.memory"].iec_60027_2_to_i
+        definition.dig(:spec, :template, :spec, :containers).each do |container|
+          memory_limit += container.dig(:resources, :limits, :memory).iec_60027_2_to_i
+        end
+        raise(QuotaMemoryLimitExceeded) if memory_limit >= quota_status.hard["limits.memory"].iec_60027_2_to_i
+
+        memory_request = quota_status.used["requests.memory"].iec_60027_2_to_i
+        definition.dig(:spec, :template, :spec, :containers).each do |container|
+          memory_request += container.dig(:resources, :requests, :memory).iec_60027_2_to_i
+        end
+        raise(QuotaMemoryRequestExceeded) if memory_request >= quota_status.hard["requests.memory"].iec_60027_2_to_i
+      end
+
+      def cpu_string_to_millicores(input)
+        match = input.match(/(?<number>\d+)(?<suffix>m?)/)
+        match[:suffix].empty? ? (match[:number].to_i * 1000) : match[:number].to_i
       end
 
       def deployment_config_definition(name, image_namespace, image)
