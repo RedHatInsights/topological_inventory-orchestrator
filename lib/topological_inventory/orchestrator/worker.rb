@@ -204,7 +204,7 @@ module TopologicalInventory
           container = d[:spec][:template][:spec][:containers].first
           container[:env] = collector_container_environment(source)
         end
-      rescue QuotaError
+      rescue TopologicalInventory::Orchestrator::ObjectManager::QuotaError
         update_topological_inventory_source_refresh_status(source, "quota_limited")
         logger.info("Skipping Deployment Config creation for source #{source["source_id"]} because it would exceed quota.")
       else
