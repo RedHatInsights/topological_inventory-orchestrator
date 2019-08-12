@@ -79,14 +79,14 @@ module TopologicalInventory
             auth = authentication_with_password(authentication["id"], tenant)
             next if auth.nil?
 
-            yield source, endpoint, auth, collector_definition
+            yield source, endpoint, auth, collector_definition, tenant
           end
         end
       end
 
       def collectors_from_sources_api
         hash = {}
-        each_source do |source, endpoint, authentication, collector_definition|
+        each_source do |source, endpoint, authentication, collector_definition, tenant|
           value = {
             "endpoint_host"   => endpoint["host"],
             "endpoint_path"   => endpoint["path"],
@@ -100,6 +100,7 @@ module TopologicalInventory
               "password" => authentication["password"],
               "username" => authentication["username"],
             },
+            "tenant"          => tenant,
           }
           key = digest(value)
           hash[key] = value
@@ -204,7 +205,19 @@ module TopologicalInventory
           container[:env] = collector_container_environment(source)
         end
       rescue QuotaError
+        update_topological_inventory_source_refresh_status(source, "quota_limited")
         logger.info("Skipping Deployment Config creation for source #{source["source_id"]} because it would exceed quota.")
+      else
+        update_topological_inventory_source_refresh_status(source, "deployed")
+      end
+
+      def update_topological_inventory_source_refresh_status(source, refresh_status)
+        RestClient.patch(
+          topology_internal_url_for("sources", source["source_id"]),
+          {:refresh_status => refresh_status}.to_json,
+          tenant_header(source["tenant"])
+        )
+      rescue RestClient::NotFound
       end
 
       def remove_openshift_objects_for_source(digest)
