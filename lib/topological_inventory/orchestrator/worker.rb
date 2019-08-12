@@ -144,15 +144,14 @@ module TopologicalInventory
 
       def get_and_parse(url, tenant_account = ORCHESTRATOR_TENANT)
         JSON.parse(
-          RestClient.get(
-            url,
-            "x-rh-identity" => Base64.strict_encode64(
-              {"identity" => {"account_number" => tenant_account}}.to_json
-            )
-          )
+          RestClient.get(url, tenant_header(tenant_account))
         )
       rescue RestClient::NotFound
         nil
+      end
+
+      def tenant_header(tenant_account)
+        {"x-rh-identity" => Base64.strict_encode64({"identity" => {"account_number" => tenant_account}}.to_json)}
       end
 
       def each_tenant
