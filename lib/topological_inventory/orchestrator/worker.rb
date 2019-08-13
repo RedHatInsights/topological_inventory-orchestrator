@@ -63,30 +63,30 @@ module TopologicalInventory
 
         each_tenant do |tenant|
           each_resource(topology_api_url_for("sources"), tenant) do |topology_source|
-            source = get_and_parse(sources_api_url_for("sources/#{topology_source["id"]}"), tenant)
+            source = get_and_parse(sources_api_url_for("sources", topology_source["id"]), tenant)
             next if source.nil?
 
             source_type = source_types_by_id[source["source_type_id"]]
 
             next unless (collector_definition = collector_definitions[source_type["name"]])
 
-            endpoints = get_and_parse(sources_api_url_for("sources/#{source["id"]}/endpoints"), tenant)
+            endpoints = get_and_parse(sources_api_url_for("sources", source["id"], "endpoints"), tenant)
             next unless (endpoint = endpoints&.dig("data")&.first)
 
-            authentications = get_and_parse(sources_api_url_for("endpoints/#{endpoint["id"]}/authentications"), tenant)
+            authentications = get_and_parse(sources_api_url_for("endpoints", endpoint["id"], "authentications"), tenant)
             next unless (authentication = authentications&.dig("data")&.first)
 
             auth = authentication_with_password(authentication["id"], tenant)
             next if auth.nil?
 
-            yield source, endpoint, auth, collector_definition
+            yield source, endpoint, auth, collector_definition, tenant
           end
         end
       end
 
       def collectors_from_sources_api
         hash = {}
-        each_source do |source, endpoint, authentication, collector_definition|
+        each_source do |source, endpoint, authentication, collector_definition, tenant|
           value = {
             "endpoint_host"   => endpoint["host"],
             "endpoint_path"   => endpoint["path"],
@@ -100,6 +100,7 @@ module TopologicalInventory
               "password" => authentication["password"],
               "username" => authentication["username"],
             },
+            "tenant"          => tenant,
           }
           key = digest(value)
           hash[key] = value
@@ -107,8 +108,8 @@ module TopologicalInventory
         hash
       end
 
-      def sources_api_url_for(path)
-        File.join(sources_api, path)
+      def sources_api_url_for(*path)
+        File.join(sources_api, *path)
       end
 
       def sources_internal_url_for(path)
@@ -119,8 +120,8 @@ module TopologicalInventory
         File.join(topology_api, path)
       end
 
-      def topology_internal_url_for(path)
-        File.join(topology_internal_api, path)
+      def topology_internal_url_for(*path)
+        File.join(topology_internal_api, *path)
       end
 
       def each_resource(url, tenant_account = ORCHESTRATOR_TENANT, &block)
@@ -144,15 +145,14 @@ module TopologicalInventory
 
       def get_and_parse(url, tenant_account = ORCHESTRATOR_TENANT)
         JSON.parse(
-          RestClient.get(
-            url,
-            "x-rh-identity" => Base64.strict_encode64(
-              {"identity" => {"account_number" => tenant_account}}.to_json
-            )
-          )
+          RestClient.get(url, tenant_header(tenant_account))
         )
       rescue RestClient::NotFound
         nil
+      end
+
+      def tenant_header(tenant_account)
+        {"x-rh-identity" => Base64.strict_encode64({"identity" => {"account_number" => tenant_account}}.to_json)}
       end
 
       def each_tenant
@@ -204,8 +204,20 @@ module TopologicalInventory
           container = d[:spec][:template][:spec][:containers].first
           container[:env] = collector_container_environment(source)
         end
-      rescue QuotaError
+      rescue TopologicalInventory::Orchestrator::ObjectManager::QuotaError
+        update_topological_inventory_source_refresh_status(source, "quota_limited")
         logger.info("Skipping Deployment Config creation for source #{source["source_id"]} because it would exceed quota.")
+      else
+        update_topological_inventory_source_refresh_status(source, "deployed")
+      end
+
+      def update_topological_inventory_source_refresh_status(source, refresh_status)
+        RestClient.patch(
+          topology_internal_url_for("sources", source["source_id"]),
+          {:refresh_status => refresh_status}.to_json,
+          tenant_header(source["tenant"])
+        )
+      rescue RestClient::NotFound
       end
 
       def remove_openshift_objects_for_source(digest)
