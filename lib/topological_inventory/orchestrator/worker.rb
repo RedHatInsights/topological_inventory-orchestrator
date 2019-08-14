@@ -196,14 +196,20 @@ module TopologicalInventory
 
       def create_openshift_objects_for_source(digest, source)
         logger.info("Creating objects for source #{source["source_id"]} with digest #{digest}")
-        object_manager.create_secret(collector_deployment_secret_name_for_source(source), source["secret"])
-        object_manager.create_deployment_config(collector_deployment_name_for_source(source), source["image_namespace"], source["image"]) do |d|
+
+        secret_name = collector_deployment_secret_name_for_source(source)
+        object_manager.create_secret(secret_name, source["secret"])
+        logger.info("Secret #{secret_name} created for source #{source["source_id"]}")
+
+        deployment_config_name = collector_deployment_name_for_source(source)
+        object_manager.create_deployment_config(deployment_config_name, source["image_namespace"], source["image"]) do |d|
           d[:metadata][:labels]["topological-inventory/collector_digest"] = digest
           d[:metadata][:labels]["topological-inventory/collector"] = "true"
           d[:spec][:replicas] = 1
           container = d[:spec][:template][:spec][:containers].first
           container[:env] = collector_container_environment(source)
         end
+        logger.info("DeploymentConfig #{deployment_config_name} created for source #{source["source_id"]}")
       rescue TopologicalInventory::Orchestrator::ObjectManager::QuotaError
         update_topological_inventory_source_refresh_status(source, "quota_limited")
         logger.info("Skipping Deployment Config creation for source #{source["source_id"]} because it would exceed quota.")
@@ -218,6 +224,7 @@ module TopologicalInventory
           tenant_header(source["tenant"])
         )
       rescue RestClient::NotFound
+        logger.error("Failed to update 'refresh_status' on source #{source["source_id"]}")
       end
 
       def remove_openshift_objects_for_source(digest)
@@ -226,8 +233,9 @@ module TopologicalInventory
         deployment = object_manager.get_deployment_configs("topological-inventory/collector_digest=#{digest}").detect { |i| i.metadata.labels["topological-inventory/collector"] == "true" }
         return unless deployment
 
-        logger.info("Removing objects for deployment #{deployment.metadata.name}")
+        logger.info("Removing deployment config #{deployment.metadata.name}")
         object_manager.delete_deployment_config(deployment.metadata.name)
+        logger.info("Removing secret #{deployment.metadata.name}-secrets")
         object_manager.delete_secret("#{deployment.metadata.name}-secrets")
       end
 
@@ -240,7 +248,7 @@ module TopologicalInventory
       end
 
       def collector_container_environment(source)
-        secret_name = "#{collector_deployment_name_for_source(source)}-secrets"
+        secret_name = collector_deployment_secret_name_for_source(source)
         [
           {:name => "AUTH_PASSWORD", :valueFrom => {:secretKeyRef => {:name => secret_name, :key => "password"}}},
           {:name => "AUTH_USERNAME", :valueFrom => {:secretKeyRef => {:name => secret_name, :key => "username"}}},

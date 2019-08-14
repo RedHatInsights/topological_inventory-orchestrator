@@ -190,6 +190,8 @@ describe TopologicalInventory::Orchestrator::Worker do
 
     it "successful" do
       expect(subject.logger).to receive(:info).with("Creating objects for source 1 with digest digest")
+      expect(subject.logger).to receive(:info).with("Secret topological-inventory-collector-source-1-secrets created for source 1")
+      expect(subject.logger).to receive(:info).with("DeploymentConfig topological-inventory-collector-source-1 created for source 1")
       expect(subject.send(:object_manager)).to receive(:create_secret).with("topological-inventory-collector-source-1-secrets", "secret")
       expect(subject.send(:object_manager)).to receive(:check_deployment_config_quota)
       expect(subject.send(:object_manager)).to receive(:connection).and_return(connection)
@@ -206,6 +208,7 @@ describe TopologicalInventory::Orchestrator::Worker do
 
     it "failed quota check" do
       expect(subject.logger).to receive(:info).with("Creating objects for source 1 with digest digest")
+      expect(subject.logger).to receive(:info).with("Secret topological-inventory-collector-source-1-secrets created for source 1")
       expect(subject.logger).to receive(:info).with("Skipping Deployment Config creation for source 1 because it would exceed quota.")
       expect(subject.send(:object_manager)).to receive(:create_secret).with("topological-inventory-collector-source-1-secrets", "secret")
       expect(subject.send(:object_manager)).to receive(:check_deployment_config_quota).and_raise(::TopologicalInventory::Orchestrator::ObjectManager::QuotaCpuLimitExceeded)
