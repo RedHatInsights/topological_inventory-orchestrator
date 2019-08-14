@@ -131,7 +131,7 @@ describe TopologicalInventory::Orchestrator::Worker do
       collector_hash = subject.send(:collectors_from_sources_api)
 
       expect(collector_hash).to eq(
-        "409a88c2a187b569c8e56ebe4db977666251e343" => {
+        "98d6f0dbd5219b970d6161fcd1c4d0284fa51d48" => {
           "endpoint_host"   => "example.com",
           "endpoint_path"   => "/api",
           "endpoint_port"   => "8443",
@@ -144,6 +144,7 @@ describe TopologicalInventory::Orchestrator::Worker do
             "password" => "PASS",
             "username" => "USER"
           },
+          "tenant"          => user_tenant_account,
         }
       )
     end
@@ -180,6 +181,44 @@ describe TopologicalInventory::Orchestrator::Worker do
 
       stub_rest_get(url, user_tenant_header, response)
       expect { |b| subject.send(:each_resource, url, user_tenant_account, &b) }.to yield_successive_args(1, 2, 3, 4, 5, 6, 7, 8)
+    end
+  end
+
+  describe "#create_openshift_objects_for_source" do
+    let(:args)       { {"secret" => "secret", "source_id" => "1", "tenant" => user_tenant_account} }
+    let(:connection) { double("Connection") }
+
+    it "successful" do
+      expect(subject.logger).to receive(:info).with("Creating objects for source 1 with digest digest")
+      expect(subject.send(:object_manager)).to receive(:create_secret).with("topological-inventory-collector-source-1-secrets", "secret")
+      expect(subject.send(:object_manager)).to receive(:check_deployment_config_quota)
+      expect(subject.send(:object_manager)).to receive(:connection).and_return(connection)
+      expect(connection).to receive(:create_deployment_config)
+
+      expect(RestClient).to receive(:patch).with(
+        "http://topology.local:8080/internal/v1.0/sources/1",
+        "{\"refresh_status\":\"deployed\"}",
+        user_tenant_header
+      )
+
+      subject.send(:create_openshift_objects_for_source, "digest", args)
+    end
+
+    it "failed quota check" do
+      expect(subject.logger).to receive(:info).with("Creating objects for source 1 with digest digest")
+      expect(subject.logger).to receive(:info).with("Skipping Deployment Config creation for source 1 because it would exceed quota.")
+      expect(subject.send(:object_manager)).to receive(:create_secret).with("topological-inventory-collector-source-1-secrets", "secret")
+      expect(subject.send(:object_manager)).to receive(:check_deployment_config_quota).and_raise(::TopologicalInventory::Orchestrator::ObjectManager::QuotaCpuLimitExceeded)
+      allow(subject.send(:object_manager)).to receive(:connection).and_return(connection)
+      expect(connection).not_to receive(:create_deployment_config)
+
+      expect(RestClient).to receive(:patch).with(
+        "http://topology.local:8080/internal/v1.0/sources/1",
+        "{\"refresh_status\":\"quota_limited\"}",
+        user_tenant_header
+      )
+
+      subject.send(:create_openshift_objects_for_source, "digest", args)
     end
   end
 
