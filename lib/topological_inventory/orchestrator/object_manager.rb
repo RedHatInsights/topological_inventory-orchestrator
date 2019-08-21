@@ -106,8 +106,22 @@ module TopologicalInventory
         )
       end
 
+      def quota_defined?
+        @quota_defined ||= begin
+          !!non_terminating_resource_quota
+        rescue Kubeclient::ResourceNotFoundError
+          false
+        end
+      end
+
+      def non_terminating_resource_quota
+        kube_connection.get_resource_quota("compute-resources-non-terminating", my_namespace)
+      end
+
       def check_deployment_config_quota(definition)
-        quota_status = kube_connection.get_resource_quota("compute-resources-non-terminating", my_namespace).status
+        return unless quota_defined?
+
+        quota_status = non_terminating_resource_quota.status
 
         cpu_limit = cpu_string_to_millicores(quota_status.used["limits.cpu"])
         definition.dig(:spec, :template, :spec, :containers).each do |container|
