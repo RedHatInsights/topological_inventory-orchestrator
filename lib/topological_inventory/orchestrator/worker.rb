@@ -73,7 +73,7 @@ module TopologicalInventory
 
             application_types = get_and_parse(sources_api_url_for("sources", source["id"], "application_types"), tenant)
 
-            enabled_applications = application_types&.dig("data")&.map { |app_type| app_type["name"] } || []
+            enabled_applications = application_types["data"].map { |app_type| app_type["name"] }
             next if (SUPPORTED_APPLICATIONS & enabled_applications).empty?
 
             endpoints = get_and_parse(sources_api_url_for("sources", source["id"], "endpoints"), tenant)
