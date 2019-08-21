@@ -47,6 +47,31 @@ describe TopologicalInventory::Orchestrator::Worker do
       EOJ
     end
 
+    let(:application_types_response) do
+      <<~EOJ
+        {
+          "links": {},
+          "data": [
+            {"id":"1","display_name":"Catalog","name":"/insights/platform/catalog"},
+            {"id":"2","display_name": "Cost Management","name":"/insights/platform/cost-management"},
+            {"id":"3","display_name": "Topological Inventory","name":"/insights/platform/topological-inventory"}
+          ]
+        }
+      EOJ
+    end
+
+    let(:applications_response) do
+      <<~EOJ
+        {
+          "links": {},
+          "data": [
+            {"id":"1","application_type_id":"1","source_id":"1","tenant_id":"1"},
+            {"id":"1","application_type_id":"1","source_id":"2","tenant_id":"1"}
+          ]
+        }
+      EOJ
+    end
+
     let(:topology_sources_response) do
       <<~EOJ
         {
@@ -120,56 +145,24 @@ describe TopologicalInventory::Orchestrator::Worker do
       EOJ
     end
 
-    let(:sources_1_application_types_response) do
-      <<~EOJ
-        {
-          "links": {},
-          "data": [
-            {"id":"1","name":"/insights/platform/catalog","display_name":"Catalog"}
-          ]
-        }
-      EOJ
-    end
-
-    let(:sources_2_application_types_response) do
-      <<~EOJ
-        {
-          "links": {},
-          "data": [
-            {"id":"1","name":"/insights/platform/catalog","display_name":"Catalog"}
-          ]
-        }
-      EOJ
-    end
-
-    let(:sources_3_application_types_response) do
-      <<~EOJ
-        {
-          "links": {},
-          "data": [
-            {"id":"1","name":"/insights/platform/cost-management","display_name":"Cost Management"}
-          ]
-        }
-      EOJ
-    end
-
     it "generates the expected hash" do
       stub_rest_get("#{sources_api}/source_types", orchestrator_tenant_header, source_types_response)
+      stub_rest_get("#{sources_api}/application_types", orchestrator_tenant_header, application_types_response)
       stub_rest_get("http://topology.local:8080/internal/v1.0/tenants", orchestrator_tenant_header, tenants_response)
+
+      application_type_query = "filter%5Bapplication_type_id%5D%5Beq%5D%3D1%26filter%5Bapplication_type_id%5D%5Beq%5D%3D3"
+      stub_rest_get("#{sources_api}/applications?#{application_type_query}", user_tenant_header, applications_response)
       stub_rest_get("#{topology_api}/sources", user_tenant_header, topology_sources_response)
 
       stub_rest_get("#{sources_api}/sources/1", user_tenant_header, sources_1_response)
-      stub_rest_get("#{sources_api}/sources/1/application_types", user_tenant_header, sources_1_application_types_response)
       stub_rest_get("#{sources_api}/sources/1/endpoints", user_tenant_header, sources_1_endpoints_response)
 
       stub_rest_get("#{sources_api}/sources/2", user_tenant_header, sources_2_response)
-      stub_rest_get("#{sources_api}/sources/2/application_types", user_tenant_header, sources_2_application_types_response)
       stub_rest_get("#{sources_api}/sources/2/endpoints", user_tenant_header, sources_2_endpoints_response)
       stub_rest_get("#{sources_api}/endpoints/1/authentications", user_tenant_header, endpoints_1_authentications_response)
       stub_rest_get("http://sources.local:8080/internal/v1.0/authentications/1?expose_encrypted_attribute[]=password", user_tenant_header, {"username" => "USER", "password" => "PASS"}.to_json)
 
       stub_rest_get("#{sources_api}/sources/3", user_tenant_header, sources_3_response)
-      stub_rest_get("#{sources_api}/sources/3/application_types", user_tenant_header, sources_3_application_types_response)
 
       stub_rest_get_404("#{sources_api}/sources/4", user_tenant_header)
 
