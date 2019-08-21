@@ -54,7 +54,8 @@ describe TopologicalInventory::Orchestrator::Worker do
           "data": [
             {"id":"1","uid":"cacebc33-1ed8-49d4-b4f9-713f2552ee65","tenant_id":"1"},
             {"id":"2","uid":"31b5338b-685d-4056-ba39-d00b4d7f19cc","tenant_id":"1"},
-            {"id":"3","uid":"95f057b7-ec11-4f04-b155-e54dcd5b01aa","tenant_id":"1"}
+            {"id":"3","uid":"95f057b7-ec11-4f04-b155-e54dcd5b01aa","tenant_id":"1"},
+            {"id":"4","uid":"2c187e9b-7442-474c-bdc4-da47bf9553fc","tenant_id":"1"}
           ]
         }
       EOJ
@@ -72,6 +73,14 @@ describe TopologicalInventory::Orchestrator::Worker do
       <<~EOJ
         {
           "id":"2","source_type_id":"1","name":"OCP","uid":"31b5338b-685d-4056-ba39-d00b4d7f19cc","tenant":"#{user_tenant_account}"
+        }
+      EOJ
+    end
+
+    let(:sources_3_response) do
+      <<~EOJ
+        {
+          "id":"3","source_type_id":"2","name":"AWS","uid":"95f057b7-ec11-4f04-b155-e54dcd5b01aa","tenant":"#{user_tenant_account}"
         }
       EOJ
     end
@@ -111,17 +120,58 @@ describe TopologicalInventory::Orchestrator::Worker do
       EOJ
     end
 
+    let(:sources_1_application_types_response) do
+      <<~EOJ
+        {
+          "links": {},
+          "data": [
+            {"id":"1","name":"/insights/platform/catalog","display_name":"Catalog"}
+          ]
+        }
+      EOJ
+    end
+
+    let(:sources_2_application_types_response) do
+      <<~EOJ
+        {
+          "links": {},
+          "data": [
+            {"id":"1","name":"/insights/platform/catalog","display_name":"Catalog"}
+          ]
+        }
+      EOJ
+    end
+
+    let(:sources_3_application_types_response) do
+      <<~EOJ
+        {
+          "links": {},
+          "data": [
+            {"id":"1","name":"/insights/platform/cost-management","display_name":"Cost Management"}
+          ]
+        }
+      EOJ
+    end
+
     it "generates the expected hash" do
       stub_rest_get("#{sources_api}/source_types", orchestrator_tenant_header, source_types_response)
       stub_rest_get("http://topology.local:8080/internal/v1.0/tenants", orchestrator_tenant_header, tenants_response)
       stub_rest_get("#{topology_api}/sources", user_tenant_header, topology_sources_response)
+
       stub_rest_get("#{sources_api}/sources/1", user_tenant_header, sources_1_response)
+      stub_rest_get("#{sources_api}/sources/1/application_types", user_tenant_header, sources_1_application_types_response)
       stub_rest_get("#{sources_api}/sources/1/endpoints", user_tenant_header, sources_1_endpoints_response)
+
       stub_rest_get("#{sources_api}/sources/2", user_tenant_header, sources_2_response)
+      stub_rest_get("#{sources_api}/sources/2/application_types", user_tenant_header, sources_2_application_types_response)
       stub_rest_get("#{sources_api}/sources/2/endpoints", user_tenant_header, sources_2_endpoints_response)
-      stub_rest_get_404("#{sources_api}/sources/3", user_tenant_header)
       stub_rest_get("#{sources_api}/endpoints/1/authentications", user_tenant_header, endpoints_1_authentications_response)
       stub_rest_get("http://sources.local:8080/internal/v1.0/authentications/1?expose_encrypted_attribute[]=password", user_tenant_header, {"username" => "USER", "password" => "PASS"}.to_json)
+
+      stub_rest_get("#{sources_api}/sources/3", user_tenant_header, sources_3_response)
+      stub_rest_get("#{sources_api}/sources/3/application_types", user_tenant_header, sources_3_application_types_response)
+
+      stub_rest_get_404("#{sources_api}/sources/4", user_tenant_header)
 
       expect(RestClient).not_to receive(:get).with("#{sources_api}/endpoints/8/authentications", any_args)
       expect(RestClient).not_to receive(:get).with("#{sources_api}/endpoints/9/authentications", any_args)

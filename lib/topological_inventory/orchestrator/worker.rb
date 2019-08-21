@@ -12,6 +12,7 @@ module TopologicalInventory
   module Orchestrator
     class Worker
       ORCHESTRATOR_TENANT = "system_orchestrator".freeze
+      SUPPORTED_APPLICATIONS = ["/insights/platform/catalog", "/insights/platform/topological-inventory"].freeze
 
       attr_reader :logger, :collector_image_tag, :sources_api, :sources_internal_api, :topology_api, :topology_internal_api
 
@@ -69,6 +70,11 @@ module TopologicalInventory
             source_type = source_types_by_id[source["source_type_id"]]
 
             next unless (collector_definition = collector_definitions[source_type["name"]])
+
+            application_types = get_and_parse(sources_api_url_for("sources", source["id"], "application_types"), tenant)
+
+            enabled_applications = application_types["data"].map { |app_type| app_type["name"] }
+            next if (SUPPORTED_APPLICATIONS & enabled_applications).empty?
 
             endpoints = get_and_parse(sources_api_url_for("sources", source["id"], "endpoints"), tenant)
             next unless (endpoint = endpoints&.dig("data")&.first)
