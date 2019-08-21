@@ -8,8 +8,8 @@ describe TopologicalInventory::Orchestrator::ObjectManager do
     let(:status_used) { Kubeclient::Resource.new("limits.cpu" => "3600m", "limits.memory" => "13172Mi", "requests.cpu" => "1600m", "requests.memory" => "6200Mi") }
 
     before do
-      expect(instance).to receive(:kube_connection).and_return(kube_client)
-      expect(kube_client).to receive(:get_resource_quota).with("compute-resources-non-terminating", nil).and_return(quota)
+      allow(instance).to receive(:kube_connection).and_return(kube_client)
+      allow(kube_client).to receive(:get_resource_quota).with("compute-resources-non-terminating", nil).and_return(quota)
     end
 
     it "quota allows" do
