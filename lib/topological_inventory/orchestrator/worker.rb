@@ -3,6 +3,7 @@ require "json"
 require "manageiq-loggers"
 require "manageiq-password"
 require "more_core_extensions/core_ext/hash"
+require "active_support/core_ext/enumerable"
 require "rest-client"
 require "yaml"
 
@@ -59,26 +60,21 @@ module TopologicalInventory
 
       ### API STUFF
       def each_source
-        source_types_by_id = {}
-        each_resource(sources_api_url_for("source_types")) { |source_type| source_types_by_id[source_type["id"]] = source_type }
+        source_types_by_id = resources(sources_api_url_for("source_types")).index_by { |st| st["id"] }
 
         each_tenant do |tenant|
           # Query applications for the supported application_types, then later we can check if the source
           # has any supported applications from this hash
-          applications_by_source_id = Hash.new { |hash, key| hash[key] = [] }
-          each_resource(supported_applications_url, tenant) do |application|
-            applications_by_source_id[application["source_id"]] << application
-          end
+          applications_by_source_id = resources(supported_applications_url, tenant).group_by { |app| app["source_id"] }
 
           each_resource(topology_api_url_for("sources"), tenant) do |topology_source|
             source = get_and_parse(sources_api_url_for("sources", topology_source["id"]), tenant)
             next if source.nil?
 
             source_type = source_types_by_id[source["source_type_id"]]
-
             next unless (collector_definition = collector_definitions[source_type["name"]])
 
-            next if applications_by_source_id[source["id"]].empty?
+            next if applications_by_source_id[source["id"]].blank?
 
             endpoints = get_and_parse(sources_api_url_for("sources", source["id"], "endpoints"), tenant)
             next unless (endpoint = endpoints&.dig("data")&.first)
@@ -134,23 +130,27 @@ module TopologicalInventory
         File.join(topology_internal_api, *path)
       end
 
-      def each_resource(url, tenant_account = ORCHESTRATOR_TENANT, &block)
+      def each_resource(url, tenant_account = ORCHESTRATOR_TENANT)
         return if url.nil?
 
-        response = get_and_parse(url, tenant_account)
-        paging = response.kind_of?(Hash)
+        loop do
+          response = get_and_parse(url, tenant_account)
+          paging = response.kind_of?(Hash)
 
-        resources = paging ? response["data"] : response
-        resources.each { |i| yield i }
+          resources = paging ? response["data"] : response
+          resources.each { |i| yield i }
 
-        return unless paging
+          break unless paging
 
-        next_page_link = response.fetch_path("links", "next")
-        return unless next_page_link
+          next_page_link = response.fetch_path("links", "next")
+          break unless next_page_link
 
-        next_url = URI.parse(url).merge(next_page_link).to_s
+          url = URI.parse(url).merge(next_page_link).to_s
+        end
+      end
 
-        each_resource(next_url, tenant_account, &block)
+      def resources(url, tenant_account = ORCHESTRATOR_TENANT)
+        Enumerator.new { |enum| each_resource(url, tenant_account) { |r| enum.yield r } }
       end
 
       def get_and_parse(url, tenant_account = ORCHESTRATOR_TENANT)
