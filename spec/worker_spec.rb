@@ -147,11 +147,16 @@ describe TopologicalInventory::Orchestrator::Worker do
 
     it "generates the expected hash" do
       stub_rest_get("#{sources_api}/source_types", orchestrator_tenant_header, source_types_response)
-      stub_rest_get("#{sources_api}/application_types", orchestrator_tenant_header, application_types_response)
+
+      application_type_query = "filter[name][eq][]=/insights/platform/catalog&"\
+                               "filter[name][eq][]=/insights/platform/topological-inventory"
+      stub_rest_get("#{sources_api}/application_types?#{application_type_query}",
+                    orchestrator_tenant_header, application_types_response)
       stub_rest_get("http://topology.local:8080/internal/v1.0/tenants", orchestrator_tenant_header, tenants_response)
 
-      application_type_query = "filter%5Bapplication_type_id%5D%5Beq%5D%5B%5D%3D1%26filter%5Bapplication_type_id%5D%5Beq%5D%5B%5D%3D3"
-      stub_rest_get("#{sources_api}/applications?#{application_type_query}", user_tenant_header, applications_response)
+      application_query = "filter[application_type_id][eq][]=1&"\
+                          "filter[application_type_id][eq][]=2&filter[application_type_id][eq][]=3"
+      stub_rest_get("#{sources_api}/applications?#{application_query}", user_tenant_header, applications_response)
       stub_rest_get("#{topology_api}/sources", user_tenant_header, topology_sources_response)
 
       stub_rest_get("#{sources_api}/sources/1", user_tenant_header, sources_1_response)

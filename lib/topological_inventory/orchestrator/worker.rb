@@ -171,16 +171,18 @@ module TopologicalInventory
 
       # Set of ids for supported applications
       def supported_application_type_ids
+        supported_applications_filter = URI.escape(SUPPORTED_APPLICATIONS.collect { |sa| "filter[name][eq][]=#{sa}" }.join("&"))
+
         ids = []
-        each_resource(sources_api_url_for("application_types")) do |application_type|
-          ids << application_type["id"] if SUPPORTED_APPLICATIONS.include?(application_type["name"])
+        each_resource(sources_api_url_for("application_types?#{supported_applications_filter}")) do |app_type|
+          ids << app_type["id"]
         end
         ids
       end
 
       # URL to get a list of applications for supported application types
       def supported_applications_url
-        query = CGI.escape(supported_application_type_ids.map { |id| "filter[application_type_id][eq][]=#{id}" }.join("&"))
+        query = URI.escape(supported_application_type_ids.map { |id| "filter[application_type_id][eq][]=#{id}" }.join("&"))
         sources_api_url_for("applications?#{query}")
       end
 
