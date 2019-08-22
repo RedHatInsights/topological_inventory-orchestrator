@@ -63,6 +63,13 @@ module TopologicalInventory
         each_resource(sources_api_url_for("source_types")) { |source_type| source_types_by_id[source_type["id"]] = source_type }
 
         each_tenant do |tenant|
+          # Query applications for the supported application_types, then later we can check if the source
+          # has any supported applications from this hash
+          applications_by_source_id = Hash.new { |hash, key| hash[key] = [] }
+          each_resource(supported_applications_url, tenant) do |application|
+            applications_by_source_id[application["source_id"]] << application
+          end
+
           each_resource(topology_api_url_for("sources"), tenant) do |topology_source|
             source = get_and_parse(sources_api_url_for("sources", topology_source["id"]), tenant)
             next if source.nil?
@@ -71,10 +78,7 @@ module TopologicalInventory
 
             next unless (collector_definition = collector_definitions[source_type["name"]])
 
-            application_types = get_and_parse(sources_api_url_for("sources", source["id"], "application_types"), tenant)
-
-            enabled_applications = application_types["data"].map { |app_type| app_type["name"] }
-            next if (SUPPORTED_APPLICATIONS & enabled_applications).empty?
+            next if applications_by_source_id[source["id"]].empty?
 
             endpoints = get_and_parse(sources_api_url_for("sources", source["id"], "endpoints"), tenant)
             next unless (endpoint = endpoints&.dig("data")&.first)
@@ -163,6 +167,23 @@ module TopologicalInventory
 
       def each_tenant
         each_resource(topology_internal_url_for("tenants")) { |tenant| yield tenant["external_tenant"] }
+      end
+
+      # Set of ids for supported applications
+      def supported_application_type_ids
+        supported_applications_filter = URI.escape(SUPPORTED_APPLICATIONS.collect { |sa| "filter[name][eq][]=#{sa}" }.join("&"))
+
+        ids = []
+        each_resource(sources_api_url_for("application_types?#{supported_applications_filter}")) do |app_type|
+          ids << app_type["id"]
+        end
+        ids
+      end
+
+      # URL to get a list of applications for supported application types
+      def supported_applications_url
+        query = URI.escape(supported_application_type_ids.map { |id| "filter[application_type_id][eq][]=#{id}" }.join("&"))
+        sources_api_url_for("applications?#{query}")
       end
 
       # HACK: for Authentications
