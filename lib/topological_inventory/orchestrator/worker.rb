@@ -180,7 +180,7 @@ module TopologicalInventory
 
       # URL to get a list of applications for supported application types
       def supported_applications_url
-        query = CGI.escape(supported_application_type_ids.map { |id| "filter[application_type_id][eq]=#{id}" }.join("&"))
+        query = CGI.escape(supported_application_type_ids.map { |id| "filter[application_type_id][eq][]=#{id}" }.join("&"))
         sources_api_url_for("applications?#{query}")
       end
 

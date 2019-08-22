@@ -150,7 +150,7 @@ describe TopologicalInventory::Orchestrator::Worker do
       stub_rest_get("#{sources_api}/application_types", orchestrator_tenant_header, application_types_response)
       stub_rest_get("http://topology.local:8080/internal/v1.0/tenants", orchestrator_tenant_header, tenants_response)
 
-      application_type_query = "filter%5Bapplication_type_id%5D%5Beq%5D%3D1%26filter%5Bapplication_type_id%5D%5Beq%5D%3D3"
+      application_type_query = "filter%5Bapplication_type_id%5D%5Beq%5D%5B%5D%3D1%26filter%5Bapplication_type_id%5D%5Beq%5D%5B%5D%3D3"
       stub_rest_get("#{sources_api}/applications?#{application_type_query}", user_tenant_header, applications_response)
       stub_rest_get("#{topology_api}/sources", user_tenant_header, topology_sources_response)
 
