@@ -205,30 +205,47 @@ describe TopologicalInventory::Orchestrator::Worker do
   end
 
   describe "#each_resource" do
-    it "works with paginated responses" do
-      path_1 = "/api/topological-inventory/v1.0/some_collection"
-      path_2 = "/api/topological-inventory/v1.0/some_collection?offset=10&limit=10"
-      path_3 = "/api/topological-inventory/v1.0/some_collection?offset=20&limit=10"
-      url_1 = "http://example.com:8080#{path_1}"
-      url_2 = "http://example.com:8080#{path_2}"
-      url_3 = "http://example.com:8080#{path_3}"
-      response_1 = {"meta" => {}, "links" => {"first" => path_1, "last" => path_3, "next" => path_2, "prev" => nil}, "data" => [1, 2, 3]}.to_json
-      response_2 = {"meta" => {}, "links" => {"first" => path_1, "last" => path_3, "next" => path_3, "prev" => path_1}, "data" => [4, 5, 6]}.to_json
-      response_3 = {"meta" => {}, "links" => {"first" => path_1, "last" => path_3, "next" => nil, "prev" => path_2}, "data" => [7, 8]}.to_json
+    let(:path_1) { "/api/topological-inventory/v1.0/some_collection" }
+    let(:path_2) { "/api/topological-inventory/v1.0/some_collection?offset=10&limit=10" }
+    let(:path_3) { "/api/topological-inventory/v1.0/some_collection?offset=20&limit=10" }
+    let(:url_1) { "http://example.com:8080#{path_1}" }
+    let(:url_2) { "http://example.com:8080#{path_2}" }
+    let(:url_3) { "http://example.com:8080#{path_3}" }
+    let(:response_1) { {"meta" => {}, "links" => {"first" => path_1, "last" => path_3, "next" => path_2, "prev" => nil}, "data" => [1, 2, 3]}.to_json }
+    let(:response_2) { {"meta" => {}, "links" => {"first" => path_1, "last" => path_3, "next" => path_3, "prev" => path_1}, "data" => [4, 5, 6]}.to_json }
+    let(:response_3) { {"meta" => {}, "links" => {"first" => path_1, "last" => path_3, "next" => nil, "prev" => path_2}, "data" => [7, 8]}.to_json }
+    let(:non_paginated_response) { [1, 2, 3, 4, 5, 6, 7, 8].to_json }
 
-      stub_rest_get(url_1, user_tenant_header, response_1)
-      stub_rest_get(url_2, user_tenant_header, response_2)
-      stub_rest_get(url_3, user_tenant_header, response_3)
+    context "paginated responses" do
+      it "with a block" do
+        stub_rest_get(url_1, user_tenant_header, response_1)
+        stub_rest_get(url_2, user_tenant_header, response_2)
+        stub_rest_get(url_3, user_tenant_header, response_3)
 
-      expect { |b| subject.send(:each_resource, url_1, user_tenant_account, &b) }.to yield_successive_args(1, 2, 3, 4, 5, 6, 7, 8)
+        expect { |b| subject.send(:each_resource, url_1, user_tenant_account, &b) }.to yield_successive_args(1, 2, 3, 4, 5, 6, 7, 8)
+      end
+
+      it "enumerable" do
+        stub_rest_get(url_1, user_tenant_header, response_1)
+        stub_rest_get(url_2, user_tenant_header, response_2)
+        stub_rest_get(url_3, user_tenant_header, response_3)
+
+        expect(subject.send(:each_resource, url_1, user_tenant_account).collect(&:to_i)).to eq([1, 2, 3, 4, 5, 6, 7, 8])
+      end
     end
 
-    it "works with non-paginated responses" do
-      url = "http://example.com:8080/things"
-      response = [1, 2, 3, 4, 5, 6, 7, 8].to_json
+    context "non-paginated responses" do
+      it "with a block" do
+        stub_rest_get(url_1, user_tenant_header, non_paginated_response)
 
-      stub_rest_get(url, user_tenant_header, response)
-      expect { |b| subject.send(:each_resource, url, user_tenant_account, &b) }.to yield_successive_args(1, 2, 3, 4, 5, 6, 7, 8)
+        expect { |b| subject.send(:each_resource, url_1, user_tenant_account, &b) }.to yield_successive_args(1, 2, 3, 4, 5, 6, 7, 8)
+      end
+
+      it "enumerable" do
+        stub_rest_get(url_1, user_tenant_header, non_paginated_response)
+
+        expect(subject.send(:each_resource, url_1, user_tenant_account).collect(&:to_i)).to eq([1, 2, 3, 4, 5, 6, 7, 8])
+      end
     end
   end
 
