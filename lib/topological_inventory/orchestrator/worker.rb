@@ -1,3 +1,4 @@
+require "active_support/core_ext/enumerable"
 require "base64"
 require "json"
 require "manageiq-loggers"
@@ -59,16 +60,12 @@ module TopologicalInventory
 
       ### API STUFF
       def each_source
-        source_types_by_id = {}
-        each_resource(sources_api_url_for("source_types")) { |source_type| source_types_by_id[source_type["id"]] = source_type }
+        source_types_by_id = each_resource(sources_api_url_for("source_types")).index_by { |source_type| source_type["id"] }
 
         each_tenant do |tenant|
           # Query applications for the supported application_types, then later we can check if the source
           # has any supported applications from this hash
-          applications_by_source_id = Hash.new { |hash, key| hash[key] = [] }
-          each_resource(supported_applications_url, tenant) do |application|
-            applications_by_source_id[application["source_id"]] << application
-          end
+          applications_by_source_id = each_resource(supported_applications_url, tenant).group_by { |application| application["source_id"] }
 
           each_resource(topology_api_url_for("sources"), tenant) do |topology_source|
             source = get_and_parse(sources_api_url_for("sources", topology_source["id"]), tenant)
@@ -78,7 +75,8 @@ module TopologicalInventory
 
             next unless (collector_definition = collector_definitions[source_type["name"]])
 
-            next if applications_by_source_id[source["id"]].empty?
+            applications_for_source = applications_by_source_id[source["id"]]
+            next if applications_for_source.nil? || applications_for_source.empty?
 
             endpoints = get_and_parse(sources_api_url_for("sources", source["id"], "endpoints"), tenant)
             next unless (endpoint = endpoints&.dig("data")&.first)
@@ -175,11 +173,7 @@ module TopologicalInventory
       def supported_application_type_ids
         supported_applications_filter = URI.escape(SUPPORTED_APPLICATIONS.collect { |sa| "filter[name][eq][]=#{sa}" }.join("&"))
 
-        ids = []
-        each_resource(sources_api_url_for("application_types?#{supported_applications_filter}")) do |app_type|
-          ids << app_type["id"]
-        end
-        ids
+        each_resource(sources_api_url_for("application_types?#{supported_applications_filter}")).collect { |app_type| app_type["id"] }
       end
 
       # URL to get a list of applications for supported application types
