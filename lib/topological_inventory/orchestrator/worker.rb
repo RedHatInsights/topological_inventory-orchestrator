@@ -135,6 +135,8 @@ module TopologicalInventory
       end
 
       def each_resource(url, tenant_account = ORCHESTRATOR_TENANT, &block)
+        return enum_for(:each_resource, url, tenant_account) unless block_given?
+
         return if url.nil?
 
         response = get_and_parse(url, tenant_account)
