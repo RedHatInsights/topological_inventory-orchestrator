@@ -50,12 +50,39 @@ describe TopologicalInventory::Orchestrator::Worker do
     let(:application_types_response) do
       <<~EOJ
         {
-          "links": {},
           "data": [
-            {"id":"1","display_name":"Catalog","name":"/insights/platform/catalog"},
-            {"id":"2","display_name": "Cost Management","name":"/insights/platform/cost-management"},
-            {"id":"3","display_name": "Topological Inventory","name":"/insights/platform/topological-inventory"}
-          ]
+            {
+                "dependent_applications": ["/insights/platform/topological-inventory"],
+                "display_name": "Catalog",
+                "id": "1",
+                "name": "/insights/platform/catalog",
+                "supported_authentication_types": {"ansible_tower": ["username_password"]},
+                "supported_source_types": ["ansible_tower"]
+            },
+            {
+                "dependent_applications": [],
+                "display_name": "Cost Management",
+                "id": "2",
+                "name": "/insights/platform/cost-management",
+                "supported_authentication_types": {"amazon": ["arn"]},
+                "supported_source_types": ["amazon"]
+            },
+            {
+                "dependent_applications": [],
+                "display_name": "Topological Inventory",
+                "id": "3",
+                "name": "/insights/platform/topological-inventory",
+                "supported_authentication_types": {
+                    "amazon": ["access_key_secret_key"],
+                    "ansible_tower": ["username_password"],
+                    "azure": ["username_password"],
+                    "openshift": ["token"]
+                },
+                "supported_source_types": ["amazon", "ansible_tower", "azure", "openshift"]
+            }
+          ],
+          "links": {
+          }
         }
       EOJ
     end
@@ -148,14 +175,10 @@ describe TopologicalInventory::Orchestrator::Worker do
     it "generates the expected hash" do
       stub_rest_get("#{sources_api}/source_types", orchestrator_tenant_header, source_types_response)
 
-      application_type_query = "filter[name][eq][]=/insights/platform/catalog&"\
-                               "filter[name][eq][]=/insights/platform/topological-inventory"
-      stub_rest_get("#{sources_api}/application_types?#{application_type_query}",
-                    orchestrator_tenant_header, application_types_response)
+      stub_rest_get("#{sources_api}/application_types", orchestrator_tenant_header, application_types_response)
       stub_rest_get("http://topology.local:8080/internal/v1.0/tenants", orchestrator_tenant_header, tenants_response)
 
-      application_query = "filter[application_type_id][eq][]=1&"\
-                          "filter[application_type_id][eq][]=2&filter[application_type_id][eq][]=3"
+      application_query = "filter[application_type_id][eq][]=1&filter[application_type_id][eq][]=3"
       stub_rest_get("#{sources_api}/applications?#{application_query}", user_tenant_header, applications_response)
       stub_rest_get("#{topology_api}/sources", user_tenant_header, topology_sources_response)
 
