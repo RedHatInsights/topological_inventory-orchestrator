@@ -13,7 +13,6 @@ module TopologicalInventory
   module Orchestrator
     class Worker
       ORCHESTRATOR_TENANT = "system_orchestrator".freeze
-      SUPPORTED_APPLICATIONS = ["/insights/platform/catalog", "/insights/platform/topological-inventory"].freeze
 
       attr_reader :logger, :collector_image_tag, :sources_api, :sources_internal_api, :topology_api, :topology_internal_api
 
@@ -169,11 +168,19 @@ module TopologicalInventory
         each_resource(topology_internal_url_for("tenants")) { |tenant| yield tenant["external_tenant"] }
       end
 
+      def each_application_type
+        each_resource(sources_api_url_for("application_types"))
+      end
+
       # Set of ids for supported applications
       def supported_application_type_ids
-        supported_applications_filter = URI.escape(SUPPORTED_APPLICATIONS.collect { |sa| "filter[name][eq][]=#{sa}" }.join("&"))
+        topology_app_name = "/insights/platform/topological-inventory"
 
-        each_resource(sources_api_url_for("application_types?#{supported_applications_filter}")).collect { |app_type| app_type["id"] }
+        each_application_type.select do |application_type|
+          application_type["name"] == topology_app_name || application_type["dependent_applications"].include?(topology_app_name)
+        end.map do |application_type|
+          application_type["id"]
+        end
       end
 
       # URL to get a list of applications for supported application types
