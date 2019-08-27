@@ -1,3 +1,4 @@
+require "active_support/core_ext/enumerable"
 require "base64"
 require "json"
 require "manageiq-loggers"
@@ -58,10 +59,13 @@ module TopologicalInventory
 
       ### API STUFF
       def each_source
-        source_types_by_id = {}
-        each_resource(sources_api_url_for("source_types")) { |source_type| source_types_by_id[source_type["id"]] = source_type }
+        source_types_by_id = each_resource(sources_api_url_for("source_types")).index_by { |source_type| source_type["id"] }
 
         each_tenant do |tenant|
+          # Query applications for the supported application_types, then later we can check if the source
+          # has any supported applications from this hash
+          applications_by_source_id = each_resource(supported_applications_url, tenant).group_by { |application| application["source_id"] }
+
           each_resource(topology_api_url_for("sources"), tenant) do |topology_source|
             source = get_and_parse(sources_api_url_for("sources", topology_source["id"]), tenant)
             next if source.nil?
@@ -69,6 +73,9 @@ module TopologicalInventory
             source_type = source_types_by_id[source["source_type_id"]]
 
             next unless (collector_definition = collector_definitions[source_type["name"]])
+
+            applications_for_source = applications_by_source_id[source["id"]]
+            next if applications_for_source.nil? || applications_for_source.empty?
 
             endpoints = get_and_parse(sources_api_url_for("sources", source["id"], "endpoints"), tenant)
             next unless (endpoint = endpoints&.dig("data")&.first)
@@ -125,6 +132,8 @@ module TopologicalInventory
       end
 
       def each_resource(url, tenant_account = ORCHESTRATOR_TENANT, &block)
+        return enum_for(:each_resource, url, tenant_account) unless block_given?
+
         return if url.nil?
 
         response = get_and_parse(url, tenant_account)
@@ -157,6 +166,27 @@ module TopologicalInventory
 
       def each_tenant
         each_resource(topology_internal_url_for("tenants")) { |tenant| yield tenant["external_tenant"] }
+      end
+
+      def each_application_type
+        each_resource(sources_api_url_for("application_types"))
+      end
+
+      # Set of ids for supported applications
+      def supported_application_type_ids
+        topology_app_name = "/insights/platform/topological-inventory"
+
+        each_application_type.select do |application_type|
+          application_type["name"] == topology_app_name || application_type["dependent_applications"].include?(topology_app_name)
+        end.map do |application_type|
+          application_type["id"]
+        end
+      end
+
+      # URL to get a list of applications for supported application types
+      def supported_applications_url
+        query = URI.escape(supported_application_type_ids.map { |id| "filter[application_type_id][eq][]=#{id}" }.join("&"))
+        sources_api_url_for("applications?#{query}")
       end
 
       # HACK: for Authentications
@@ -196,14 +226,20 @@ module TopologicalInventory
 
       def create_openshift_objects_for_source(digest, source)
         logger.info("Creating objects for source #{source["source_id"]} with digest #{digest}")
-        object_manager.create_secret(collector_deployment_secret_name_for_source(source), source["secret"])
-        object_manager.create_deployment_config(collector_deployment_name_for_source(source), source["image_namespace"], source["image"]) do |d|
+
+        secret_name = collector_deployment_secret_name_for_source(source)
+        object_manager.create_secret(secret_name, source["secret"])
+        logger.info("Secret #{secret_name} created for source #{source["source_id"]}")
+
+        deployment_config_name = collector_deployment_name_for_source(source)
+        object_manager.create_deployment_config(deployment_config_name, source["image_namespace"], source["image"]) do |d|
           d[:metadata][:labels]["topological-inventory/collector_digest"] = digest
           d[:metadata][:labels]["topological-inventory/collector"] = "true"
           d[:spec][:replicas] = 1
           container = d[:spec][:template][:spec][:containers].first
           container[:env] = collector_container_environment(source)
         end
+        logger.info("DeploymentConfig #{deployment_config_name} created for source #{source["source_id"]}")
       rescue TopologicalInventory::Orchestrator::ObjectManager::QuotaError
         update_topological_inventory_source_refresh_status(source, "quota_limited")
         logger.info("Skipping Deployment Config creation for source #{source["source_id"]} because it would exceed quota.")
@@ -218,6 +254,7 @@ module TopologicalInventory
           tenant_header(source["tenant"])
         )
       rescue RestClient::NotFound
+        logger.error("Failed to update 'refresh_status' on source #{source["source_id"]}")
       end
 
       def remove_openshift_objects_for_source(digest)
@@ -226,8 +263,9 @@ module TopologicalInventory
         deployment = object_manager.get_deployment_configs("topological-inventory/collector_digest=#{digest}").detect { |i| i.metadata.labels["topological-inventory/collector"] == "true" }
         return unless deployment
 
-        logger.info("Removing objects for deployment #{deployment.metadata.name}")
+        logger.info("Removing deployment config #{deployment.metadata.name}")
         object_manager.delete_deployment_config(deployment.metadata.name)
+        logger.info("Removing secret #{deployment.metadata.name}-secrets")
         object_manager.delete_secret("#{deployment.metadata.name}-secrets")
       end
 
@@ -240,7 +278,7 @@ module TopologicalInventory
       end
 
       def collector_container_environment(source)
-        secret_name = "#{collector_deployment_name_for_source(source)}-secrets"
+        secret_name = collector_deployment_secret_name_for_source(source)
         [
           {:name => "AUTH_PASSWORD", :valueFrom => {:secretKeyRef => {:name => secret_name, :key => "password"}}},
           {:name => "AUTH_USERNAME", :valueFrom => {:secretKeyRef => {:name => secret_name, :key => "username"}}},
