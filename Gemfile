@@ -10,6 +10,7 @@ gem "more_core_extensions", "~>3.7.0"
 gem "optimist"
 gem "prometheus_exporter", "~> 0.4.5"
 gem "rest-client", "~>2.0"
+gem "activesupport", "~>5.2.2"
 
 group :test do
   gem "rake", "~> 10.0"
