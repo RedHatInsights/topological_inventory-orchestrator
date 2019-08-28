@@ -60,7 +60,13 @@ module TopologicalInventory
         ).first
 
         scale(name, 0)
-        connection.delete_deployment_config(name, my_namespace)
+        delete_options = Kubeclient::Resource.new(
+          :apiVersion         => 'meta/v1',
+          :gracePeriodSeconds => 0,
+          :kind               => 'DeleteOptions',
+          :propagationPolicy  => 'Foreground' # Orphan, Foreground, or Background
+        )
+        connection.delete_deployment_config(name, my_namespace, :delete_options => delete_options)
         delete_replication_controller(rc.metadata.name) if rc
       rescue Kubeclient::ResourceNotFoundError
       end
