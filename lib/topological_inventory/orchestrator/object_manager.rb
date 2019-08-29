@@ -61,10 +61,10 @@ module TopologicalInventory
 
         scale(name, 0)
         delete_options = Kubeclient::Resource.new(
-          :apiVersion         => 'meta/v1',
+          :apiVersion         => 'v1',
           :gracePeriodSeconds => 0,
           :kind               => 'DeleteOptions',
-          :propagationPolicy  => 'Foreground' # Orphan, Foreground, or Background
+          :propagationPolicy  => 'Background' # Orphan, Foreground, or Background
         )
         connection.delete_deployment_config(name, my_namespace, :delete_options => delete_options)
         delete_replication_controller(rc.metadata.name) if rc
