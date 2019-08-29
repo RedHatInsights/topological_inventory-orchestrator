@@ -14,6 +14,7 @@ def parse_args
         :default => ENV["SOURCES_API"], :required => ENV["SOURCES_API"].nil?
     opt :topology_api, "URL to the topological inventory service, e.g. http://localhost:4000/api/v0.1", :type => :string,
         :default => ENV["TOPOLOGICAL_INVENTORY_API"], :required => ENV["TOPOLOGICAL_INVENTORY_API"].nil?
+    opt :config, "Configuration YAML file name", :type => :string, :default => ENV["CONFIG"] || 'default'
   end
 
   opts
@@ -31,5 +32,5 @@ Signal.trap("TERM") do
   exit
 end
 
-w = TopologicalInventory::Orchestrator::Worker.new(:collector_image_tag => args[:collector_image_tag], :sources_api => args[:sources_api], :topology_api => args[:topology_api])
+w = TopologicalInventory::Orchestrator::Worker.new(:collector_image_tag => args[:collector_image_tag], :sources_api => args[:sources_api], :topology_api => args[:topology_api], :config_name => args[:config])
 w.run
