@@ -121,11 +121,7 @@ module TopologicalInventory
           Source.new(attributes, tenant, source_type, collector_definition, :from_sources_api => true).tap do |source|
             source.load_credentials(@api)
 
-            if source.digest.present?
-              @sources_by_digest[source.digest] = source
-            else
-              logger.error("Source #{source} invalid, no data for digest")
-            end
+            @sources_by_digest[source.digest] = source if source.digest.present?
           end
         end
 
