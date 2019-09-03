@@ -1,9 +1,14 @@
 module TopologicalInventory
   module Orchestrator
+    # Event Manager subscribes to kafka topic "platform.sources.event-stream"
+    # and listens to messages from Sources API: create/update/destroy
+    # on models used for computing of digest (see Source#digest_values)
+    #
+    # When event is received then sync API -> OpenShift is invoked.
+    # If no event is caught for >= 1 hour, sync is invoked too.
     class EventManager
       include Logging
 
-      ORCHESTRATOR_EVENT_NAME = "Orchestrator.sync".freeze
       SYNC_EVENT_INTERVAL = 1.hour
       SKIP_SUBSEQUENT_EVENTS_DURATION = 5.seconds
 
@@ -22,7 +27,7 @@ module TopologicalInventory
 
       def run!
         Thread.new { listener }
-        loop { publisher }
+        loop { scheduled_sync }
       end
 
       private
@@ -34,32 +39,38 @@ module TopologicalInventory
         messaging_client.subscribe_topic(subscribe_opts) do |message|
           begin
             if events.include?(message.message)
-              Thread.new { process_event } # Ack message, don't wait
+              Thread.new { process_event(message.message, message.payload['id']) } # Ack message, don't wait
             end
           rescue => err
-            logger.error("#{err} | #{err.backtrace.join("\n")}")
+            logger.error("#{err}\n#{err.backtrace.join("\n")}")
           end
         end
       ensure
         messaging_client&.close
       end
 
-      # Publisher invokes sync event once per hour if no other event came
-      def publisher
+      # Scheduled_sync invokes sync once per hour if no event came
+      def scheduled_sync
+        schedule_sync = false
         event_semaphore.synchronize do
-          self.publisher_sleep_time = if last_event_at.nil? || (Time.now.utc - last_event_at > SYNC_EVENT_INTERVAL)
-                                        publish_sync_event
-                                        SYNC_EVENT_INTERVAL + 5.seconds # 5 seconds for kafka delivery delay
+          now = Time.now.utc
+          # Schedule sync when orchestrator starts or if no event was received in last hour
+          schedule_sync = last_event_at.nil? || (now - last_event_at > SYNC_EVENT_INTERVAL)
+
+          # Set next sync to 1 hour from last sync
+          self.publisher_sleep_time = if schedule_sync
+                                        SYNC_EVENT_INTERVAL
                                       else
-                                        [SYNC_EVENT_INTERVAL - (Time.now.utc - last_event_at).to_i, 0].max
+                                        [SYNC_EVENT_INTERVAL - (now - last_event_at), 1.second].max.to_i
                                       end
         end
+        Thread.new { process_event("Scheduled.Sync") if schedule_sync }
         sleep(publisher_sleep_time)
       end
 
       # Sources UI (through API) generates multiple events
       # for one update, just 1 should be processed
-      def process_event
+      def process_event(event_name, model_id = nil)
         event_semaphore.synchronize do
           if last_event_at.nil? || (Time.now.utc - last_event_at > SKIP_SUBSEQUENT_EVENTS_DURATION)
             self.last_event_at = Time.now.utc
@@ -72,6 +83,8 @@ module TopologicalInventory
 
         # Just one sync at the same time
         sync_semaphore.synchronize do
+          msg = "Sync started by event #{event_name}: id [#{model_id.presence || '---'}]"
+          logger.send(model_id.present? ? :info : :debug, msg) # Info log only for Sources API events
           worker.make_openshift_match_database
         end
       end
@@ -87,23 +100,9 @@ module TopologicalInventory
       # Orchestrator is listening to these events
       # (digest is created from these models)
       def events
-        return @events if @events.present?
-
-        @events = %w[Source Endpoint Authentication Application].collect do |model|
+        @events ||= %w[Source Endpoint Authentication Application].collect do |model|
           %W[#{model}.create #{model}.update #{model}.destroy]
         end.flatten
-        @events << ORCHESTRATOR_EVENT_NAME
-        @events
-      end
-
-      def publish_sync_event
-        publish_opts = {
-          :service => queue_name,
-          :event   => ORCHESTRATOR_EVENT_NAME,
-          :payload => {}.to_json
-        }
-
-        messaging_client.publish_topic(publish_opts)
       end
 
       def messaging_client

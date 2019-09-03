@@ -46,7 +46,7 @@ module TopologicalInventory
           loop do
             make_openshift_match_database
 
-            sleep 10
+            sleep 10.seconds
           end
         else
           EventManager.run!(self)
