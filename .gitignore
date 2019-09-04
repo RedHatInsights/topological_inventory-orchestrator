@@ -1,5 +1,11 @@
-.bundle
-Gemfile.lock
+/.bundle/
+/Gemfile.lock
 
 # generated rubocop file
-.rubocop-*
+/.rubocop-https*
+
+/tmp/
+/bundler.d/
+
+# rspec failure tracking
+.rspec_status
