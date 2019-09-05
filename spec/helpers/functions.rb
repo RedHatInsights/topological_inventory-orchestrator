@@ -4,6 +4,8 @@ module Functions
   # API call stubs for Source, endpoint, authentication(and credentials)
   def stub_api_source_calls(source)
     stub_api_source_get(source, show(source))
+    return unless source_available?(source)
+
     endpoint = endpoints(source)[source['id']]
     stub_rest_get("#{sources_api}/sources/#{source["id"]}/endpoints", user_tenant_header, list([endpoint]))
 

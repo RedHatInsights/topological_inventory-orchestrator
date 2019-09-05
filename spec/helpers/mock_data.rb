@@ -45,20 +45,33 @@ module MockData
   def sources_data
     hash = {}
 
-    add_source(hash, '1', :type => :openshift, :uid => 'cacebc33-1ed8-49d4-b4f9-713f2552ee65')
-    add_source(hash, '2', :type => :openshift, :uid => '31b5338b-685d-4056-ba39-d00b4d7f19cc')
-    add_source(hash, '3', :type => :openshift, :uid => '95f057b7-ec11-4f04-b155-e54dcd5b01aa')
-    add_source(hash, '4', :type => :amazon, :uid => '15493710-8a96-4516-a0de-a9349ba61b9c')
-    add_source(hash, '5', :type => :amazon, :uid => 'a3e42e0b-0902-4911-a0cd-356bd3cf684e')
-    add_source(hash, '6', :type => :amazon, :uid => '86094174-5ae9-476b-8ff5-7c24e01e380d')
+    add_source(hash, '1', :type => :openshift, :uid => 'cacebc33-1ed8-49d4-b4f9-713f2552ee65', :availability_status => 'available')
+    add_source(hash, '2', :type => :openshift, :uid => '31b5338b-685d-4056-ba39-d00b4d7f19cc', :availability_status => 'unavailable')
+    add_source(hash, '3', :type => :openshift, :uid => '95f057b7-ec11-4f04-b155-e54dcd5b01aa', :availability_status => 'available')
+    add_source(hash, '4', :type => :amazon, :uid => '15493710-8a96-4516-a0de-a9349ba61b9c', :availability_status => 'available')
+    add_source(hash, '5', :type => :amazon, :uid => 'a3e42e0b-0902-4911-a0cd-356bd3cf684e', :availability_status => 'available')
+    add_source(hash, '6', :type => :amazon, :uid => '86094174-5ae9-476b-8ff5-7c24e01e380d', :availability_status => 'unavailable')
     add_source(hash, '7', :type => :azure, :uid => '4a31b8be-57fc-44e6-899d-d92c3ccc6552')
     add_source(hash, '8', :type => :azure, :uid => '9fe99b8c-2cfa-43d8-a695-bf01a535f897')
     add_source(hash, '9', :type => :azure, :uid => 'e4c89509-7177-4f56-8fcc-3015c390c4e7')
     add_source(hash, '10', :type => :mock, :uid => '8d8d6d75-a1c0-417c-933e-c8f254307cb1')
     add_source(hash, '11', :type => :mock, :uid => '232dce7e-0f89-4601-8796-f3af43618f62')
     add_source(hash, '12', :type => :mock, :uid => 'bfd2da99-722b-4ba3-9606-393c1b8c79f4')
-
     hash
+  end
+
+  def available_sources_data(type)
+    sources_data[type].select { |_key, source| source_available?(source) }
+  end
+
+  def source_available?(source)
+    return true unless supports_availability_check?(source["type"])
+
+    source["availability_status"] == "available"
+  end
+
+  def supports_availability_check?(type)
+    TopologicalInventory::Orchestrator::SourceType::AVAILABILITY_CHECK_SOURCE_TYPES.include?(type.to_s)
   end
 
   def topological_sources
@@ -198,21 +211,24 @@ module MockData
 
   private
 
-  def add_source(out, id, topological: false, type:, uid:)
+  def add_source(out, id, topological: false, type:, uid:, availability_status: nil)
     out[type] ||= {}
     new_source = if topological
                    {
                      'id'        => id.to_s,
+                     'type'      => type.to_s,
                      'uid'       => uid,
                      'tenant_id' => '1'
                    }
                  else
                    {
-                     'id'             => id.to_s,
-                     'source_type_id' => (source_types_data[type] || {})['id'],
-                     'name'           => "#{type}#{id}",
-                     'uid'            => uid,
-                     'tenant'         => user_tenant_account
+                     'id'                  => id.to_s,
+                     'type'                => type.to_s,
+                     'source_type_id'      => (source_types_data[type] || {})['id'],
+                     'name'                => "#{type}#{id}",
+                     'uid'                 => uid,
+                     'tenant'              => user_tenant_account,
+                     'availability_status' => availability_status
                    }
                  end
     out[type][id] = new_source
