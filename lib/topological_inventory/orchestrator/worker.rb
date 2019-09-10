@@ -3,6 +3,7 @@ require "base64"
 require "config"
 require "json"
 require "manageiq-password"
+require "manageiq-messaging"
 require "more_core_extensions/core_ext/hash"
 require "rest-client"
 require "yaml"
@@ -12,6 +13,7 @@ require "topological_inventory/orchestrator/object_manager"
 require "topological_inventory/orchestrator/api"
 require "topological_inventory/orchestrator/config_map"
 require "topological_inventory/orchestrator/deployment_config"
+require "topological_inventory/orchestrator/event_manager"
 require "topological_inventory/orchestrator/secret"
 require "topological_inventory/orchestrator/source_type"
 require "topological_inventory/orchestrator/source"
@@ -40,24 +42,14 @@ module TopologicalInventory
       def run
         remove_single_source_deployments
 
-        loop do
-          make_openshift_match_database
+        if ENV['NO_KAFKA']
+          loop do
+            make_openshift_match_database
 
-          sleep 10
-        end
-      end
-
-      private
-
-      # Removing of (old) single-source deployment configs
-      # TODO: can be removed after first deployment
-      def remove_single_source_deployments
-        dcs = object_manager.get_deployment_configs("topological-inventory/collector=true").select do |dc|
-          dc.metadata.labels[TopologicalInventory::Orchestrator::DeploymentConfig::LABEL_DIGEST].present?
-        end
-
-        dcs.each do |dc|
-          object_manager.delete_deployment_config(dc.metadata.name)
+            sleep 10.seconds
+          end
+        else
+          EventManager.run!(self)
         end
       end
 
@@ -83,6 +75,20 @@ module TopologicalInventory
         # Remove unused openshift objects
         remove_old_deployments
         remove_old_secrets
+      end
+
+      private
+
+      # Removing of (old) single-source deployment configs
+      # TODO: can be removed after first deployment
+      def remove_single_source_deployments
+        dcs = object_manager.get_deployment_configs("topological-inventory/collector=true").select do |dc|
+          dc.metadata.labels[TopologicalInventory::Orchestrator::DeploymentConfig::LABEL_DIGEST].present?
+        end
+
+        dcs.each do |dc|
+          object_manager.delete_deployment_config(dc.metadata.name)
+        end
       end
 
       def object_manager
