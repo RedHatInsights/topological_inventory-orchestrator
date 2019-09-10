@@ -19,7 +19,6 @@ module TopologicalInventory
 
       def initialize(worker)
         self.worker = worker
-        self.sync_semaphore = Mutex.new
         self.queue = Queue.new
       end
 
@@ -32,7 +31,7 @@ module TopologicalInventory
 
       private
 
-      attr_accessor :queue, :sync_semaphore, :worker
+      attr_accessor :queue, :worker
       #
       # Event listener invokes sync when received event from Sources API
       #
@@ -79,12 +78,9 @@ module TopologicalInventory
       end
 
       def process_event(event_name, model_id = nil)
-        # Just one sync at the same time
-        sync_semaphore.synchronize do
-          msg = "Sync started by event #{event_name}: id [#{model_id.presence || '---'}]"
-          logger.send(model_id.present? ? :info : :debug, msg) # Info log only for Sources API events
-          worker.make_openshift_match_database
-        end
+        msg = "Sync started by event #{event_name}: id [#{model_id.presence || '---'}]"
+        logger.send(model_id.present? ? :info : :debug, msg) # Info log only for Sources API events
+        worker.make_openshift_match_database
       end
 
       def persist_ref
