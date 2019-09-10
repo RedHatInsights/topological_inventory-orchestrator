@@ -7,7 +7,7 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
   let(:openshift_object) { double('openshift_object') }
   let(:source) { double('source') }
   let(:source2) { double('source2') }
-  let(:source_type) { double('source_type') }
+  let(:source_type) { TopologicalInventory::Orchestrator::SourceType.new(source_types_data[:openshift]) }
   let(:secret) { double('secret') }
   let(:deployment_config) { double('deployment_config') }
 
@@ -46,7 +46,6 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
       expect(secret).to receive(:create_in_openshift)
       expect(deployment_config).to receive(:create_in_openshift)
 
-      allow(source_type).to receive(:[]).and_return('source_type-name')
       allow(source).to receive(:digest).and_return('1234')
 
       config_map.init_from_source!(source)
@@ -131,8 +130,7 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
 
       it "cannot add source of different type" do
         allow(source).to receive_messages(:digest => nil)
-        allow(source_type).to receive_messages(:sources_per_collector => 1,
-                                               :[]                    => 'source_type-name')
+        allow(source_type).to receive_messages(:sources_per_collector => 1)
 
         allow(source).to receive(:source_type).and_return({})
         expect { config_map.add_source(source) }.to raise_exception("ConfigMap not available")
@@ -142,8 +140,7 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
         allow(source).to receive_messages(:digest      => nil,
                                           :source_type => source_type)
         # Max one source
-        allow(source_type).to receive_messages(:sources_per_collector => 1,
-                                               :[]                    => 'source_type-name')
+        allow(source_type).to receive_messages(:sources_per_collector => 1)
 
         expect { config_map.add_source(source) }.not_to raise_exception
         config_map.sources << double

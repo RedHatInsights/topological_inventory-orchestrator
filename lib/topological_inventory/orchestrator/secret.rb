@@ -50,7 +50,9 @@ module TopologicalInventory
       end
 
       def name
-        "tp-inventory-secret-#{uid}"
+        source_type = config_map&.source_type
+        type_name   = source_type.present? ? source_type['name'] : 'unknown'
+        "secret-#{type_name}-#{uid}"
       end
 
       # Secret config-UID is relation to config-map's template
