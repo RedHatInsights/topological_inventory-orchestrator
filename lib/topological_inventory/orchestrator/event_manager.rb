@@ -5,12 +5,12 @@ module TopologicalInventory
     # on models used for computing of digest (see Source#digest_values)
     #
     # When event is received then sync API -> OpenShift is invoked.
-    # If no event is caught for >= 1 hour, sync is invoked too.
+    # Sync is invoked also once per hour
     class EventManager
       include Logging
 
-      SYNC_EVENT_INTERVAL = 1.hour
-      SKIP_SUBSEQUENT_EVENTS_DURATION = 5.seconds
+      SCHEDULED_EVENT_INTERVAL = 1.hour
+      POLL_TIME = 10.seconds
 
       def self.run!(worker)
         manager = new(worker)
@@ -19,68 +19,66 @@ module TopologicalInventory
 
       def initialize(worker)
         self.worker = worker
-        self.event_semaphore = Mutex.new
-        self.sync_semaphore  = Mutex.new
-        self.last_event_at = nil
-        self.publisher_sleep_time = 0
+        self.sync_semaphore = Mutex.new
+        self.queue = Queue.new
       end
 
       def run!
-        Thread.new { listener }
-        loop { scheduled_sync }
+        Thread.new { event_listener }
+        Thread.new { scheduler }
+
+        processor
       end
 
       private
 
-      attr_accessor :event_semaphore, :last_event_at,
-                    :publisher_sleep_time, :sync_semaphore, :worker
-
-      def listener
+      attr_accessor :queue, :sync_semaphore, :worker
+      #
+      # Event listener invokes sync when received event from Sources API
+      #
+      def event_listener
         messaging_client.subscribe_topic(subscribe_opts) do |message|
-          begin
-            if events.include?(message.message)
-              Thread.new { process_event(message.message, message.payload['id']) } # Ack message, don't wait
-            end
-          rescue => err
-            logger.error("#{err}\n#{err.backtrace.join("\n")}")
+          if events.include?(message.message)
+            queue.push(:event_name => message.message,
+                       :model_id   => message.payload['id'])
           end
         end
       ensure
         messaging_client&.close
       end
 
-      # Scheduled_sync invokes sync once per hour if no event came
-      def scheduled_sync
-        schedule_sync = false
-        event_semaphore.synchronize do
-          now = Time.now.utc
-          # Schedule sync when orchestrator starts or if no event was received in last hour
-          schedule_sync = last_event_at.nil? || (now - last_event_at > SYNC_EVENT_INTERVAL)
+      #
+      # Scheduler invokes sync once per hour
+      #
+      def scheduler
+        loop do
+          queue.push(:event_name => "Scheduled.Sync",
+                     :model_id   => nil)
 
-          # Set next sync to 1 hour from last sync
-          self.publisher_sleep_time = if schedule_sync
-                                        SYNC_EVENT_INTERVAL
-                                      else
-                                        [SYNC_EVENT_INTERVAL - (now - last_event_at), 1.second].max.to_i
-                                      end
+          sleep(SCHEDULED_EVENT_INTERVAL)
         end
-        Thread.new { process_event("Scheduled.Sync") if schedule_sync }
-        sleep(publisher_sleep_time)
       end
 
-      # Sources UI (through API) generates multiple events
-      # for one update, just 1 should be processed
-      def process_event(event_name, model_id = nil)
-        event_semaphore.synchronize do
-          if last_event_at.nil? || (Time.now.utc - last_event_at > SKIP_SUBSEQUENT_EVENTS_DURATION)
-            self.last_event_at = Time.now.utc
-          else
-            return
+      #
+      # Processor starts sync once per 10 seconds
+      #   if there is an event in the queue
+      #
+      def processor
+        loop do
+          events = []
+          events << queue.pop until queue.empty?
+
+          # Sources UI (through API) generates multiple events at the same time
+          # One sync is sufficient
+          if (event = events.first).present?
+            process_event(event[:event_name], event[:model_id])
           end
+
+          sleep(POLL_TIME)
         end
+      end
 
-        sleep(SKIP_SUBSEQUENT_EVENTS_DURATION)
-
+      def process_event(event_name, model_id = nil)
         # Just one sync at the same time
         sync_semaphore.synchronize do
           msg = "Sync started by event #{event_name}: id [#{model_id.presence || '---'}]"

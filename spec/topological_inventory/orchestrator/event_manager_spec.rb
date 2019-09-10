@@ -1,6 +1,7 @@
 RSpec.describe TopologicalInventory::Orchestrator::EventManager do
   let(:worker) { double("worker") }
   let(:message) { double("Message") }
+  let(:queue) { double("Queue") }
 
   subject { described_class.new(worker) }
 
@@ -9,38 +10,11 @@ RSpec.describe TopologicalInventory::Orchestrator::EventManager do
     allow(TopologicalInventory::Orchestrator).to receive(:logger).and_return(double('logger').as_null_object)
 
     allow(subject).to receive(:sleep)
+    allow(subject).to receive(:queue).and_return(queue)
     allow(message).to receive(:payload).and_return('id' => '1')
-
-    @mutex = Mutex.new
-    @cv = ConditionVariable.new
-    @sync_invoked = 0
   end
 
-  describe "#scheduled_sync" do
-    it "doesn't invoke sync in less than hour" do
-      subject.send(:last_event_at=, Time.now.utc - 5.minutes)
-      expect(subject).not_to receive(:process_event)
-      subject.send(:scheduled_sync)
-    end
-
-    it "invokes sync after an hour" do
-      subject.send(:last_event_at=, Time.now.utc - 1.hour)
-      stub_process_event
-      subject.send(:scheduled_sync)
-
-      assert_process_event_calls_count(1)
-    end
-
-    it "invokes sync when orchestrator starts" do
-      subject.send(:last_event_at=, nil)
-      stub_process_event
-      subject.send(:scheduled_sync)
-
-      assert_process_event_calls_count(1)
-    end
-  end
-
-  describe "#listener" do
+  describe "#event_listener" do
     let(:messaging_client) { double("Kafka Client") }
 
     before do
@@ -52,54 +26,16 @@ RSpec.describe TopologicalInventory::Orchestrator::EventManager do
     end
 
     it "processes only allowed events" do
-      stub_process_event
+      expect(queue).to receive(:push).exactly(2).times
 
-      # Unsupported events
-      allow(message).to receive(:message).and_return("Source.custom")
-      subject.send(:listener)
-      allow(message).to receive(:message).and_return("Not.interesting.event")
-      subject.send(:listener)
-
-      # Supported events
-      allow(message).to receive(:message).and_return("Source.create")
-      subject.send(:listener)
-      allow(message).to receive(:message).and_return("Application.create")
-      subject.send(:listener)
-
-      assert_process_event_calls_count(2)
-    end
-
-    it "start sync only once for subsequent events" do
-      expect(worker).to receive(:make_openshift_match_database).twice
-
-      skip_sync_duration = 1.second
-      stub_const("#{subject.class.name}::SKIP_SUBSEQUENT_EVENTS_DURATION", skip_sync_duration)
-
-      2.times do
-        allow(message).to receive(:message).and_return("Source.create")
-        subject.send(:listener)
-        allow(message).to receive(:message).and_return("Endpoint.create")
-        subject.send(:listener)
-        allow(message).to receive(:message).and_return("Authentication.create")
-        subject.send(:listener)
-
-        sleep(skip_sync_duration)
+      # 2 supported and 2 unsupported events
+      %w[Source.create
+         Source.custom
+         Not.interesting.event
+         Application.create].each do |event_name|
+        allow(message).to receive(:message).and_return(event_name)
+        subject.send(:event_listener)
       end
     end
-  end
-
-  def stub_process_event
-    allow(subject).to receive(:process_event) do
-      @mutex.synchronize { @sync_invoked += 1; @cv.wait(@mutex) }
-    end
-  end
-
-  def assert_process_event_calls_count(expected_cnt)
-    called = false
-    until called
-      @mutex.synchronize { called = expected_cnt == @sync_invoked }
-    end
-    @cv.broadcast
-    expect(expected_cnt).to eq(@sync_invoked)
   end
 end
