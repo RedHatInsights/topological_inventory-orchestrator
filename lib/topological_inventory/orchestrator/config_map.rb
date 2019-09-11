@@ -170,7 +170,8 @@ module TopologicalInventory
       end
 
       def name
-        "tp-inventory-configmap-#{uid}"
+        type_name = source_type.present? ? source_type['name'] : 'unknown'
+        "config-#{type_name}-#{uid}"
       end
 
       # New ConfigMap is associated with random UUID
