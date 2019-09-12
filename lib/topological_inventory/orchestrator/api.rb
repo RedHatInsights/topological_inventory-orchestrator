@@ -60,8 +60,8 @@ module TopologicalInventory
           {:refresh_status => refresh_status}.to_json,
           tenant_header(source["tenant"])
         )
-      rescue RestClient::NotFound
-        logger.error("Failed to update 'refresh_status' on source #{source["id"]}")
+      rescue StandardError => e
+        logger.error("Failed to update 'refresh_status' on source #{source["id"]}\n#{e.message}\n#{e.backtrace.join("\n")}")
       end
 
       private
