@@ -1,6 +1,10 @@
+require "topological_inventory/orchestrator/logger"
+
 module TopologicalInventory
   module Orchestrator
     class Api
+      include Logging
+
       attr_accessor :sources_api, :sources_internal_api, :topology_api, :topology_internal_api
 
       def initialize(sources_api:, topology_api:)
