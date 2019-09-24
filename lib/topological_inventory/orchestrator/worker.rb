@@ -114,20 +114,24 @@ module TopologicalInventory
         @sources_by_digest = {}
 
         @api.each_source do |attributes, tenant|
-          if (source_type = @source_types_by_id[attributes['source_type_id']]).nil?
-            logger.error("Source #{attributes['id']}: Source Type not found (#{attributes['source_type_id']})")
-            next
-          end
+          begin
+            if (source_type = @source_types_by_id[attributes['source_type_id']]).nil?
+              logger.error("Source #{attributes['id']}: Source Type not found (#{attributes['source_type_id']})")
+              next
+            end
 
-          if (collector_definition = source_type.collector_definition(collector_image_tag)).nil?
-            logger.debug("Source #{attributes['id']}: Source Type not supported (#{source_type['name']})")
-            next
-          end
+            if (collector_definition = source_type.collector_definition(collector_image_tag)).nil?
+              logger.debug("Source #{attributes['id']}: Source Type not supported (#{source_type['name']})")
+              next
+            end
 
-          Source.new(attributes, tenant, source_type, collector_definition, :from_sources_api => true).tap do |source|
-            source.load_credentials(@api)
+            Source.new(attributes, tenant, source_type, collector_definition, :from_sources_api => true).tap do |source|
+              source.load_credentials(@api)
 
-            @sources_by_digest[source.digest] = source if source.digest.present?
+              @sources_by_digest[source.digest] = source if source.digest.present?
+            end
+          rescue => err
+            logger.error("Failed to load source #{attributes["name"]}: #{err}\n#{err.backtrace.join("\n")}")
           end
         end
 

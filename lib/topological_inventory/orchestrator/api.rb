@@ -106,6 +106,9 @@ module TopologicalInventory
         JSON.parse(
           RestClient.get(url, tenant_header(tenant_account))
         )
+      rescue RestClient::Exception => e
+        logger.error("Failed to get #{url}: #{e}")
+        raise
       rescue RestClient::NotFound
         nil
       end
