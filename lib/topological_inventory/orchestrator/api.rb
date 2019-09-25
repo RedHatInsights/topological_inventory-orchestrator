@@ -1,6 +1,10 @@
+require "topological_inventory/orchestrator/logger"
+
 module TopologicalInventory
   module Orchestrator
     class Api
+      include Logging
+
       attr_accessor :sources_api, :sources_internal_api, :topology_api, :topology_internal_api
 
       def initialize(sources_api:, topology_api:)
@@ -60,8 +64,8 @@ module TopologicalInventory
           {:refresh_status => refresh_status}.to_json,
           tenant_header(source["tenant"])
         )
-      rescue RestClient::NotFound
-        logger.error("Failed to update 'refresh_status' on source #{source["id"]}")
+      rescue StandardError => e
+        logger.error("Failed to update 'refresh_status' on source #{source["id"]}\n#{e.message}\n#{e.backtrace.join("\n")}")
       end
 
       private
@@ -108,6 +112,9 @@ module TopologicalInventory
         )
       rescue RestClient::NotFound
         nil
+      rescue RestClient::Exception => e
+        logger.error("Failed to get #{url}: #{e}")
+        raise
       end
 
       def tenant_header(tenant_account)
