@@ -2,4 +2,5 @@ collectors:
   sources_per_collector:
     amazon: 2
     ansible-tower: 2
+    azure: 2
     openshift: 2

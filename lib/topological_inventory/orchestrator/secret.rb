@@ -82,6 +82,12 @@ module TopologicalInventory
             'username' => source.credentials['username'],
             'password' => source.credentials['password']
           }
+
+          # Azure has extra parameter "tenant_id"
+          if source.source_type&.azure?
+            tenant_id = source.azure_tenant.to_s
+            data[source['uid']]['tenant_id'] = tenant_id if tenant_id.present?
+          end
         end
 
         { "credentials" => data.to_json }

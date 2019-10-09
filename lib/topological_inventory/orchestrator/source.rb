@@ -63,10 +63,14 @@ module TopologicalInventory
         @digest = compute_digest(digest_values)
       end
 
+      def azure_tenant
+        authentication.try(:[], "extra").try(:[], "azure").try(:[], "tenant_id")
+      end
+      
       private
 
       def digest_values
-        {
+        hash = {
           "endpoint_host"   => endpoint["host"],
           "endpoint_path"   => endpoint["path"],
           "endpoint_port"   => endpoint["port"].to_s,
@@ -80,6 +84,12 @@ module TopologicalInventory
             "username" => credentials["username"],
           }
         }
+        # Azure has extra parameter "tenant_id"
+        if source_type.azure?
+          tenant_id = azure_tenant.to_s
+          hash['secret']['tenant_id'] = tenant_id if tenant_id.present?
+        end
+        hash
       end
 
       def compute_digest(object)
