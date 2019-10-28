@@ -5,6 +5,7 @@ require File.join(Bundler::Plugin.index.load_paths("bundler-inject")[0], "bundle
 
 gem "cloudwatchlogger", "~>0.2"
 gem "config", "~> 1.7.2"
+gem "http", "~> 4.1.1"
 gem "kubeclient", "~>4.0"
 gem "manageiq-loggers", "~>0.4"
 gem 'manageiq-messaging',   '~> 0.1.5'
