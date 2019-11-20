@@ -95,7 +95,10 @@ module TopologicalInventory
       def container_env_values
         [
           { :name => "INGRESS_API", :value => "http://#{ENV["TOPOLOGICAL_INVENTORY_INGRESS_API_SERVICE_HOST"]}:#{ENV["TOPOLOGICAL_INVENTORY_INGRESS_API_SERVICE_PORT"]}" },
-          { :name => "CONFIG", :value => 'custom'}
+          { :name => "CONFIG", :value => 'custom'},
+          { :name => "CLOUD_WATCH_LOG_GROUP", :value => ENV["CLOUD_WATCH_LOG_GROUP"] },
+          { :name => "CW_AWS_ACCESS_KEY_ID", :valueFrom => { :secretKeyRef => { :name => 'cloudwatch', :key => 'CW_AWS_ACCESS_KEY_ID' }}},
+          { :name => "CW_AWS_SECRET_ACCESS_KEY", :valueFrom => { :secretKeyRef => { :name => 'cloudwatch', :key => 'CW_AWS_SECRET_ACCESS_KEY' }}},
         ]
       end
 
