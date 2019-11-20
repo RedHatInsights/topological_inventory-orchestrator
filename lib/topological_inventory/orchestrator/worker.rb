@@ -125,6 +125,10 @@ module TopologicalInventory
               next
             end
 
+            if source_type.supports_availability_check?
+              next unless attributes["availability_status"] == "available"
+            end
+
             Source.new(attributes, tenant, source_type, collector_definition, :from_sources_api => true).tap do |source|
               source.load_credentials(@api)
 

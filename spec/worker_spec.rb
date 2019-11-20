@@ -32,7 +32,7 @@ describe TopologicalInventory::Orchestrator::Worker do
 
   describe "#quotas" do
     let(:topology_sources_response) { list(topological_sources[:openshift].values) }
-    let(:sources_size) { sources_data[:openshift].keys.size }
+    let(:available_sources_size) { available_sources_data(:openshift).keys.size }
 
     before do
       # Init of api calls
@@ -48,25 +48,25 @@ describe TopologicalInventory::Orchestrator::Worker do
       # Init Source API calls
       sources_data[:openshift].each_value do |source_data|
         stub_api_source_calls(source_data)
-        stub_api_source_refresh_status_patch(source_data, "deployed")
+        stub_api_source_refresh_status_patch(source_data, "deployed") if source_available?(source_data)
       end
 
-      expect(subject.send(:object_manager)).to receive(:check_deployment_config_quota).exactly(sources_size).times
+      expect(subject.send(:object_manager)).to receive(:check_deployment_config_quota).exactly(available_sources_size).times
       # Run orchestrator
       subject.send(:make_openshift_match_database)
 
       # Test number of objects in OpenShift
-      assert_openshift_objects_count(sources_size)
+      assert_openshift_objects_count(available_sources_size)
     end
 
     it "failed quota check" do
       # Init Source API calls
       sources_data[:openshift].each_value do |source_data|
         stub_api_source_calls(source_data)
-        stub_api_source_refresh_status_patch(source_data, "quota_limited")
+        stub_api_source_refresh_status_patch(source_data, "quota_limited") if source_available?(source_data)
       end
 
-      expect(subject.send(:object_manager)).to receive(:check_deployment_config_quota).and_raise(::TopologicalInventory::Orchestrator::ObjectManager::QuotaCpuLimitExceeded).exactly(sources_size).times
+      expect(subject.send(:object_manager)).to receive(:check_deployment_config_quota).and_raise(::TopologicalInventory::Orchestrator::ObjectManager::QuotaCpuLimitExceeded).exactly(available_sources_size).times
 
       expect(kube_client).not_to receive(:create_deployment_config)
 

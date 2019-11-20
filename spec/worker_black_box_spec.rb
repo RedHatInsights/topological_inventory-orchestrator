@@ -80,7 +80,7 @@ describe TopologicalInventory::Orchestrator::Worker do
 
     context "with sources of the same source_type (openshift)," do
       let(:topology_sources_response) { list(topological_sources[:openshift].values) }
-      let(:sources_size) { sources_data[:openshift].keys.size }
+      let(:available_sources_size) { available_sources_data(:openshift).keys.size }
 
       (1..3).each do |sources_per_collector|
         it "#{sources_per_collector} sources per collector" do
@@ -94,23 +94,23 @@ describe TopologicalInventory::Orchestrator::Worker do
           subject.send(:make_openshift_match_database)
 
           # Check add/remove calls
-          expect(@added).to eq(sources_size)
+          expect(@added).to eq(available_sources_size)
           expect(@removed).to eq(0)
 
           # Check against "Openshift" (Mock KubeClient)
-          objects_cnt = sources_size / sources_per_collector
-          objects_cnt += 1 if sources_size % sources_per_collector > 0
+          objects_cnt = available_sources_size / sources_per_collector
+          objects_cnt += 1 if available_sources_size % sources_per_collector > 0
 
           assert_openshift_objects_count(objects_cnt)
 
-          sources_data[:openshift].each_value { |source| assert_openshift_objects_data(source) }
+          available_sources_data(:openshift).each_value { |source| assert_openshift_objects_data(source) }
         end
       end
     end
 
     context "with sources of different types," do
       let(:topology_sources_response) { list(topological_sources[:openshift].values + topological_sources[:amazon].values) }
-      let(:sources_size) { sources_data[:openshift].keys.size + sources_data[:amazon].keys.size }
+      let(:available_sources_size) { available_sources_data(:openshift).keys.size + available_sources_data(:amazon).keys.size }
 
       (1..3).each do |sources_per_collector|
         it "#{sources_per_collector} sources per config_map" do
@@ -126,19 +126,19 @@ describe TopologicalInventory::Orchestrator::Worker do
           subject.send(:make_openshift_match_database)
 
           # Check add/remove calls
-          expect(@added).to eq(sources_size)
+          expect(@added).to eq(available_sources_size)
           expect(@removed).to eq(0)
 
           # Check against "Openshift" (Mock KubeClient)
           objects_cnt = 0
           %i[openshift amazon].each do |source_type_name|
-            objects_cnt += sources_data[source_type_name].keys.size / sources_per_collector
-            objects_cnt += 1 if sources_data[source_type_name].keys.size % sources_per_collector > 0
+            objects_cnt += available_sources_data(source_type_name).keys.size / sources_per_collector
+            objects_cnt += 1 if available_sources_data(source_type_name).keys.size % sources_per_collector > 0
           end
           assert_openshift_objects_count(objects_cnt)
 
-          sources_data[:openshift].each_value { |source| assert_openshift_objects_data(source) }
-          sources_data[:amazon].each_value { |source| assert_openshift_objects_data(source) }
+          available_sources_data(:openshift).each_value { |source| assert_openshift_objects_data(source) }
+          available_sources_data(:amazon).each_value { |source| assert_openshift_objects_data(source) }
         end
       end
     end
@@ -167,6 +167,7 @@ describe TopologicalInventory::Orchestrator::Worker do
         # 1st sync
         #
         @sources_in_openshift = topological_sources[:openshift].values + topological_sources[:amazon].values
+        @available_sources = available_sources_data(:openshift).values + available_sources_data(:amazon).values
 
         stub_api_init(:application_types => application_types_response,
                       :applications      => applications_response,
@@ -180,9 +181,10 @@ describe TopologicalInventory::Orchestrator::Worker do
         sources_data[:amazon].each_value { |s| stub_api_source_calls(s) }
 
         subject.send(:make_openshift_match_database)
-        expect(@added).to eq(@sources_in_openshift.size)
 
-        assert_openshift_objects_count(3 + 2) # 3 for openshift, 2 for amazon
+        expect(@added).to eq(@available_sources.size)
+
+        assert_openshift_objects_count(2 + 1) # 2 for openshift, 1 for amazon
         @added = 0 # reset
       end
 
@@ -199,7 +201,7 @@ describe TopologicalInventory::Orchestrator::Worker do
         subject.send(:make_openshift_match_database)
 
         expect(@added).to eq(0)
-        expect(@removed).to eq(@sources_in_openshift.size)
+        expect(@removed).to eq(@available_sources.size)
 
         assert_openshift_objects_count(0)
       end
@@ -216,6 +218,10 @@ describe TopologicalInventory::Orchestrator::Worker do
                                  topological_sources[:openshift]['2'],
                                  topological_sources[:amazon]['4'],
                                  topological_sources[:amazon]['5']]
+        @available_sources = [available_sources_data(:openshift)['1'],
+                              available_sources_data(:openshift)['2'],
+                              available_sources_data(:amazon)['4'],
+                              available_sources_data(:amazon)['5']].compact
 
         stub_api_init(:application_types => application_types_response,
                       :applications      => applications_response,
@@ -232,9 +238,9 @@ describe TopologicalInventory::Orchestrator::Worker do
 
         # Run orchestrator
         subject.send(:make_openshift_match_database)
-        expect(@added).to eq(@sources_in_openshift.size)
+        expect(@added).to eq(@available_sources.size)
 
-        assert_openshift_objects_count(2 + 2) # 2 for openshift, 2 for amazon
+        assert_openshift_objects_count(1 + 2) # 1 for openshift, 2 for amazon
 
         @added = 0 # reset
       end
@@ -263,15 +269,15 @@ describe TopologicalInventory::Orchestrator::Worker do
         # Run orchestrator
         subject.send(:make_openshift_match_database)
 
-        expect(@added).to eq(2)
-        expect(@removed).to eq(2)
+        expect(@added).to eq(1)     # azure/7
+        expect(@removed).to eq(1)   # openshift/2
 
-        assert_openshift_objects_count(1 + 1 + 2) # openshift + azure + amazon
+        assert_openshift_objects_count(1 + 1 + 1) # openshift + azure + amazon
         assert_openshift_objects_data(sources_data[:openshift]['1'])
         assert_openshift_objects_data(sources_data[:openshift]['2'], :missing => true)
         assert_openshift_objects_data(sources_data[:amazon]['4'])
         assert_openshift_objects_data(sources_data[:amazon]['5'], :missing => true)
-        assert_openshift_objects_data(sources_data[:amazon]['6']) # added
+        assert_openshift_objects_data(sources_data[:amazon]['6'], :missing => true)
         assert_openshift_objects_data(sources_data[:azure]['7']) # added
       end
     end
