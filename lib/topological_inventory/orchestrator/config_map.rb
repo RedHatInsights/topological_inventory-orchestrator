@@ -11,7 +11,8 @@ module TopologicalInventory
       LABEL_UNIQUE = "tp-inventory/config-uid".freeze
       LABEL_SOURCE_TYPE = "tp-inventory/source-type".freeze
 
-      attr_accessor :deployment_config, :secret, :source_type, :sources
+      attr_accessor :source_type, :sources, :targeted_update
+      attr_writer :deployment_config, :secret
 
       def to_s
         str = "#{uid} [#{sources.count} sources]"
@@ -32,6 +33,7 @@ module TopologicalInventory
 
         self.source_type = nil
         self.sources = []
+        self.targeted_update = false
       end
 
       # Creates new ConfigMap, DeploymentConfig, Secret in **openshift**
@@ -79,6 +81,19 @@ module TopologicalInventory
         sources_by_digest
       end
 
+      # Pairs Source from event with config map, providing additional information if needed
+      # @param sources_by_uid [Hash<String, Orchestrator::Source>]
+      def associate_sources_by_uid(sources_by_uid)
+        custom_yml_content[:sources].each do |yaml_source|
+          source = sources_by_uid[yaml_source[:source]]
+          if source.present?
+            source.digest = yaml_source[:digest]
+            source.config_map = self
+            sources << source
+          end
+        end
+      end
+
       # Adds Source to this ConfigMap and Secret
       # Collector's app reloads config map automatically
       def add_source(source)
@@ -87,17 +102,29 @@ module TopologicalInventory
         raise "ConfigMap not available" unless available?(source)
 
         if source.digest.present?
-          if !digests.include?(source.digest)
-            digests << source.digest
-            sources << source
-            update!
-            logger.info("[OK] Added Source #{source} to ConfigMap #{self}")
+          if targeted_update
+            upsert_one!(source)
           else
-            logger.warn("[WARN] Trying to add already added source #{source} to ConfigMap #{self}")
+            if !digests.include?(source.digest)
+              digests << source.digest
+              sources << source
+              update!
+              logger.info("[OK] Added Source #{source} to ConfigMap #{self}")
+            else
+              logger.warn("[WARN] Trying to add already added source #{source} to ConfigMap #{self}")
+            end
           end
         else
           logger.warn("[WARN] Trying to add source #{source} without digest to ConfigMap #{self}")
         end
+      end
+
+      def update_source(source)
+        logger.info("Updating Source #{source} from ConfigMap #{self}")
+
+        upsert_one!(source)
+
+        logger.info("[OK] Updated Source #{source} in ConfigMap")
       end
 
       # Remove Source from this ConfigMap and Secret
@@ -108,10 +135,10 @@ module TopologicalInventory
         digests.delete(source.digest) if source.digest.present?
         sources.delete(source)
 
-        if sources.size.zero?
+        if sources_count.zero?
           delete_in_openshift
         else
-          update!
+          targeted_update ? targeted_delete(source) : update!
         end
 
         logger.info("[OK] Removed Source #{source} from ConfigMap #{self}")
@@ -145,17 +172,37 @@ module TopologicalInventory
       end
 
       def create_secret
-        self.secret = new_secret.tap do |s|
+        @secret = new_secret.tap do |s|
           s.config_map = self
         end
-        secret.create_in_openshift
+        @secret.create_in_openshift
+      end
+
+      # Lazy load
+      def secret
+        return @secret if @secret.present?
+
+        secret = new_secret.tap do |s|
+          s.config_map = self
+        end
+        @secret = secret if secret.openshift_object.present?
       end
 
       def create_deployment_config
-        self.deployment_config = new_deployment_config.tap do |dc|
+        @deployment_config = new_deployment_config.tap do |dc|
           dc.config_map = self
         end
-        deployment_config.create_in_openshift
+        @deployment_config.create_in_openshift
+      end
+
+      # Lazy load
+      def deployment_config
+        return @deployment_config if @deployment_config.present?
+
+        dc = new_deployment_config.tap do |dc|
+          dc.config_map = self
+        end
+        @deployment_config = dc if dc.openshift_object.present?
       end
 
       def delete_in_openshift
@@ -192,30 +239,101 @@ module TopologicalInventory
         sources.each do |source|
           next unless source.from_sources_api
 
-          cfg[:sources] << {
-            :source      => source['uid'],
-            :source_id   => source['id'],
-            :source_name => source['name'],
-            :scheme      => source.endpoint['scheme'],
-            :host        => source.endpoint['host'],
-            :port        => source.endpoint['port'],
-            :path        => source.endpoint['path'],
-          }
+          cfg[:sources] << source_to_yaml(source)
         end
 
         cfg.to_yaml
+      end
+
+      def source_to_yaml(source)
+        {
+          :source      => source['uid'],
+          :source_id   => source['id'],
+          :source_name => source['name'],
+          :scheme      => source.endpoint['scheme'],
+          :host        => source.endpoint['host'],
+          :port        => source.endpoint['port'],
+          :path        => source.endpoint['path'],
+          :digest      => source.digest
+        }
+      end
+
+      # Parsed content of custom.yml
+      def custom_yml_content(reload: false)
+        return @yaml if @yaml.present? && !reload
+
+        @yaml = YAML.load(openshift_object.data['custom.yml']) # TODO: test blank data
       end
 
       # Updates digests in openshift object's data
       def update!
         raise "Missing openshift object" if openshift_object.nil?
 
-        openshift_object.data.digests = digests.to_json
-        openshift_object.data['custom.yml'] = yaml_from_sources
-
-        object_manager.update_config_map(openshift_object)
+        save_config_map(digests.to_json, yaml_from_sources)
 
         secret&.update!
+      end
+
+      # Insert or update for targeted update
+      # @param source [Orchestrator::Source]
+      def upsert_one!(source)
+        raise "Missing openshift object" if openshift_object.nil?
+
+        custom_yml_data = custom_yml_content
+
+        # Update Source
+        logger.debug("UpdateOne: YAML: #{custom_yml_data[:sources]} | Source: #{source}")
+        found = (idx = custom_yml_data[:sources].index { |yaml_source| yaml_source[:source] == source['uid'] }).present?
+
+        new_digest = source.digest(:forced => true)
+        if found
+          old_digest = custom_yml_data[:sources][idx][:digest]
+          custom_yml_data[:sources][idx] = source_to_yaml(source)
+        else
+          custom_yml_data[:sources] << source_to_yaml(source)
+        end
+
+        # Update Digests
+        digests.delete(old_digest) if found
+        digests << new_digest
+
+        # Update Time
+        custom_yml_data[:updated_at] = Time.now.utc.strftime("%Y-%m-%d %H:%M:%S")
+
+        save_config_map(digests.to_json, custom_yml_data.to_yaml)
+
+        # Update Secret
+        secret&.upsert_one!(source)
+      end
+
+      def targeted_delete(source)
+        raise "Missing openshift object" if openshift_object.nil?
+
+        custom_yml_data = custom_yml_content
+        found = (idx = custom_yml_data[:sources].index { |yaml_source| yaml_source[:source] == source['uid'] }).present?
+        unless found
+          logger.warn("Targeted delete (Source #{source}): Not found in ConfigMap #{self}")
+          return
+        end
+
+        old_digest = custom_yml_data[:sources][idx][:digest]
+
+        custom_yml_data[:sources].delete_at(idx)
+        digests.delete(old_digest)
+
+        # Update Time
+        custom_yml_data[:updated_at] = Time.now.utc.strftime("%Y-%m-%d %H:%M:%S")
+        # Save Config Map
+        save_config_map(digests.to_json, custom_yml_data.to_yaml)
+        # Update Secret
+        secret&.targeted_delete(source)
+      end
+
+      def save_config_map(digests_json, data_yaml)
+        openshift_object.data.digests = digests_json
+        openshift_object.data['custom.yml'] = data_yaml
+
+        object_manager.update_config_map(openshift_object)
       end
 
       def digests
@@ -241,13 +359,22 @@ module TopologicalInventory
 
       # Maximum sources is set by config
       def free_slot?
-        current = sources.size
+        current = sources_count
         max = source_type&.sources_per_collector || 1
 
         is_free = current < max
 
         logger.debug("ConfigMap #{self}: Free slot? (max: #{max}, current: #{current}): #{is_free ? 'T' : 'F'}")
         is_free
+      end
+
+      # For full update all sources are loaded, for targeted update, load count from custom.yml
+      def sources_count
+        if self.targeted_update
+          custom_yml_content[:sources].size
+        else
+          sources.size
+        end
       end
 
       def new_secret

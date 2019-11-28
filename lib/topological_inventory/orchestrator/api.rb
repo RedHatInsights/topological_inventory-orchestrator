@@ -16,7 +16,7 @@ module TopologicalInventory
       end
 
       def each_tenant
-        each_resource(topology_internal_url_for("tenants")) { |tenant| yield tenant["external_tenant"] }
+        each_resource(topology_internal_url_for("tenants")) { |tenant| yield tenant }
       end
 
       def each_source_type
@@ -25,16 +25,17 @@ module TopologicalInventory
 
       def each_source
         each_tenant do |tenant|
+          tenant_name = tenant["external_tenant"]
           # Query applications for the supported application_types, then later we can check if the source
           # has any supported applications from this hash
-          applications_by_source_id = each_resource(supported_applications_url, tenant).group_by { |application| application["source_id"] }
+          applications_by_source_id = each_resource(supported_applications_url, tenant_name).group_by { |application| application["source_id"] }
 
-          each_resource(topology_api_url_for("sources"), tenant) do |topology_source|
-            source = get_and_parse(sources_api_url_for("sources", topology_source["id"].to_s), tenant)
+          each_resource(topology_api_url_for("sources"), tenant_name) do |topology_source|
+            source = get_and_parse(sources_api_url_for("sources", topology_source["id"].to_s), tenant_name)
 
             if source.present?
               applications_for_source = applications_by_source_id[source["id"]]
-              yield source, tenant if applications_for_source.present?
+              yield source, tenant_name if applications_for_source.present?
             end
           end
         end

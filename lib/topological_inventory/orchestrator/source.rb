@@ -38,6 +38,10 @@ module TopologicalInventory
         end
       end
 
+      def update_in_openshift
+        config_map&.update_source(self)
+      end
+
       def remove_from_openshift
         config_map&.remove_source(self)
       end
@@ -56,8 +60,8 @@ module TopologicalInventory
         @digest = value
       end
 
-      def digest
-        return @digest if @digest.present?
+      def digest(forced: false)
+        return @digest if @digest.present? && !forced
         return nil if attributes.nil? || endpoint.nil? || authentication.nil? || credentials.nil?
 
         @digest = compute_digest(digest_values)
