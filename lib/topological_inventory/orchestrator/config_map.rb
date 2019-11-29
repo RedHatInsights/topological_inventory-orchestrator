@@ -193,11 +193,13 @@ module TopologicalInventory
           next unless source.from_sources_api
 
           cfg[:sources] << {
-            :source => source['uid'],
-            :scheme => source.endpoint['scheme'],
-            :host   => source.endpoint['host'],
-            :port   => source.endpoint['port'],
-            :path   => source.endpoint['path'],
+            :source      => source['uid'],
+            :source_id   => source['id'],
+            :source_name => source['name'],
+            :scheme      => source.endpoint['scheme'],
+            :host        => source.endpoint['host'],
+            :port        => source.endpoint['port'],
+            :path        => source.endpoint['path'],
           }
         end
 
