@@ -4,3 +4,6 @@ collectors:
     ansible-tower: 2
     azure: 2
     openshift: 2
+sync:
+  poll_time_seconds: 10
+  scheduled_event_hours: 1
