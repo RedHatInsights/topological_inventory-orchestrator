@@ -40,8 +40,6 @@ module TopologicalInventory
       end
 
       def run
-        remove_single_source_deployments
-
         if ENV['NO_KAFKA']
           loop do
             make_openshift_match_database
@@ -78,18 +76,6 @@ module TopologicalInventory
       end
 
       private
-
-      # Removing of (old) single-source deployment configs
-      # TODO: can be removed after first deployment
-      def remove_single_source_deployments
-        dcs = object_manager.get_deployment_configs("topological-inventory/collector=true").select do |dc|
-          dc.metadata.labels[TopologicalInventory::Orchestrator::DeploymentConfig::LABEL_DIGEST].present?
-        end
-
-        dcs.each do |dc|
-          object_manager.delete_deployment_config(dc.metadata.name)
-        end
-      end
 
       def object_manager
         @object_manager ||= ObjectManager.new

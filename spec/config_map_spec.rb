@@ -5,8 +5,8 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
 
   let(:object_manager) { double('object_manager') }
   let(:openshift_object) { double('openshift_object') }
-  let(:source) { double('source') }
-  let(:source2) { double('source2') }
+  let(:source) { TopologicalInventory::Orchestrator::Source.new({'id' => '1', 'uid' => 'source-1', 'name' => 'Source 1'}, nil, nil, nil, from_sources_api: true) }
+  let(:source2) { TopologicalInventory::Orchestrator::Source.new({'id' => '2', 'uid' => 'source-2', 'name' => 'Source 2'}, nil, nil, nil, from_sources_api: true) }
   let(:source_type) { TopologicalInventory::Orchestrator::SourceType.new(source_types_data[:openshift]) }
   let(:secret) { double('secret') }
   let(:deployment_config) { double('deployment_config') }
@@ -15,9 +15,7 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
 
   before do
     allow(source).to receive(:source_type).and_return(source_type)
-    allow(source).to receive(:[]) { |arg| arg == 'uid' ? 'source-1' : nil }
     allow(source2).to receive(:source_type).and_return(source_type)
-    allow(source2).to receive(:[]) { |arg| arg == 'uid' ? 'source-2' : nil }
 
     allow(config_map).to receive_messages(
       :logger                => double('logger').as_null_object,
@@ -92,8 +90,8 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
         # Compare it with endpoints and source uids
         loaded_data = YAML.load(config_map_data['custom.yml'])
         expected_data = [
-          endpoint1.transform_keys!(&:to_sym).merge(:source => source['uid']),
-          endpoint2.transform_keys!(&:to_sym).merge(:source => source2['uid'])
+          endpoint1.transform_keys!(&:to_sym).merge(:source => source['uid'], :source_id => source['id'], :source_name => source['name']),
+          endpoint2.transform_keys!(&:to_sym).merge(:source => source2['uid'], :source_id => source2['id'], :source_name => source2['name'])
         ]
         expect(loaded_data[:sources]).to eq(expected_data)
       end
@@ -189,7 +187,7 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
         # Compare it with endpoints and source uids
         loaded_data = YAML.load(config_map_data['custom.yml'])
         expected_data = [
-          endpoint2.transform_keys!(&:to_sym).merge(:source => source2['uid'])
+          endpoint2.transform_keys!(&:to_sym).merge(:source => source2['uid'], :source_id => source2['id'], :source_name => source2['name'])
         ]
         expect(loaded_data[:sources]).to eq(expected_data)
         expect(config_map.sources).to eq([source2])
