@@ -9,9 +9,6 @@ module TopologicalInventory
     class EventManager
       include Logging
 
-      SCHEDULED_EVENT_INTERVAL = 1.hour
-      POLL_TIME = 10.seconds
-
       def self.run!(worker)
         manager = new(worker)
         manager.run!
@@ -54,7 +51,7 @@ module TopologicalInventory
           queue.push(:event_name => "Scheduled.Sync",
                      :model_id   => nil)
 
-          sleep(SCHEDULED_EVENT_INTERVAL)
+          sleep((::Settings.sync.scheduled_event_hours || 1).hours)
         end
       end
 
@@ -73,7 +70,7 @@ module TopologicalInventory
             process_event(event[:event_name], event[:model_id])
           end
 
-          sleep(POLL_TIME)
+          sleep((::Settings.sync.poll_time_seconds || 10).seconds)
         end
       end
 
