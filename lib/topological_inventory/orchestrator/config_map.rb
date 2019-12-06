@@ -81,17 +81,18 @@ module TopologicalInventory
         sources_by_digest
       end
 
-      # Pairs Source from event with config map, providing additional information if needed
-      # @param sources_by_uid [Hash<String, Orchestrator::Source>]
-      def associate_sources_by_uid(sources_by_uid)
+      def associate_sources_by_targets(targets)
         custom_yml_content[:sources].each do |yaml_source|
-          source = sources_by_uid[yaml_source[:source]]
-          if source.present?
-            source.digest = yaml_source[:digest]
-            source.config_map = self
-            sources << source
+          targets.each do |target|
+            next if target[:source].blank?
+            next if target[:source]['uid'] != yaml_source[:source]
+
+            target[:source].digest = yaml_source[:digest]
+            target[:source].config_map = self
+            sources << target[:source]
           end
         end
+        sources.uniq!
       end
 
       # Adds Source to this ConfigMap and Secret
@@ -119,6 +120,8 @@ module TopologicalInventory
         end
       end
 
+      # Targeted update's method:
+      # Creates or updates source in openshift(custom.yml and digests)
       def update_source(source)
         logger.info("Updating Source #{source} from ConfigMap #{self}")
 
@@ -135,10 +138,12 @@ module TopologicalInventory
         digests.delete(source.digest) if source.digest.present?
         sources.delete(source)
 
+        targeted_delete(source) if targeted_update
+
         if sources_count.zero?
           delete_in_openshift
         else
-          targeted_update ? targeted_delete(source) : update!
+          update! unless targeted_update
         end
 
         logger.info("[OK] Removed Source #{source} from ConfigMap #{self}")
@@ -262,7 +267,7 @@ module TopologicalInventory
       def custom_yml_content(reload: false)
         return @yaml if @yaml.present? && !reload
 
-        @yaml = YAML.load(openshift_object.data['custom.yml']) # TODO: test blank data
+        @yaml = YAML.load(openshift_object.data['custom.yml'])
       end
 
       # Updates digests in openshift object's data
@@ -285,7 +290,7 @@ module TopologicalInventory
         logger.debug("UpdateOne: YAML: #{custom_yml_data[:sources]} | Source: #{source}")
         found = (idx = custom_yml_data[:sources].index { |yaml_source| yaml_source[:source] == source['uid'] }).present?
 
-        new_digest = source.digest(:forced => true)
+        new_digest = source.digest(:reload => true)
         if found
           old_digest = custom_yml_data[:sources][idx][:digest]
           custom_yml_data[:sources][idx] = source_to_yaml(source)
@@ -309,6 +314,7 @@ module TopologicalInventory
       def targeted_delete(source)
         raise "Missing openshift object" if openshift_object.nil?
 
+        # Search for source in custom.yml
         custom_yml_data = custom_yml_content
         found = (idx = custom_yml_data[:sources].index { |yaml_source| yaml_source[:source] == source['uid'] }).present?
         unless found
@@ -318,6 +324,7 @@ module TopologicalInventory
 
         old_digest = custom_yml_data[:sources][idx][:digest]
 
+        # Remove from custom.yml and digests
         custom_yml_data[:sources].delete_at(idx)
         digests.delete(old_digest)
 
@@ -370,7 +377,7 @@ module TopologicalInventory
 
       # For full update all sources are loaded, for targeted update, load count from custom.yml
       def sources_count
-        if self.targeted_update
+        if targeted_update
           custom_yml_content[:sources].size
         else
           sources.size

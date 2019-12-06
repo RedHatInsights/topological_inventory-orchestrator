@@ -12,7 +12,7 @@ describe TopologicalInventory::Orchestrator::Worker do
 
   # Predefined responses
   let(:empty_list_response) { list([]) }
-  let(:tenants_response) { list([tenants[:user]]) }
+  let(:tenants_response) { list([tenants[user_tenant_account]]) }
   let(:application_types_response) { list(application_types_data) }
   let(:applications_response) { list(applications_data.values) }
 
@@ -192,8 +192,8 @@ describe TopologicalInventory::Orchestrator::Worker do
         #
         # 2nd sync
         #
-        stub_api_init(:application_types => application_types_response,
-                      :applications      => applications_response,
+        # :application_types request cached
+        stub_api_init(:applications      => applications_response,
                       :source_types      => source_types_response,
                       :tenants           => tenants_response,
                       :topology_sources  => empty_list_response)
@@ -255,8 +255,8 @@ describe TopologicalInventory::Orchestrator::Worker do
                             topological_sources[:amazon]['6'], # new
                             topological_sources[:azure]['7']]  # new
 
-        stub_api_init(:application_types => application_types_response,
-                      :applications      => applications_response,
+        # :application_types request cached
+        stub_api_init(:applications      => applications_response,
                       :source_types      => source_types_response,
                       :tenants           => tenants_response,
                       :topology_sources  => list(sources_from_api))

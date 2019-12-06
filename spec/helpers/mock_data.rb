@@ -19,8 +19,16 @@ module MockData
     "12345"
   end
 
+  def user2_tenant_account
+    "234567"
+  end
+
   def user_tenant_header
     {"x-rh-identity" => "eyJpZGVudGl0eSI6eyJhY2NvdW50X251bWJlciI6IjEyMzQ1In19"}
+  end
+
+  def user2_tenant_header
+    {"x-rh-identity" => "eyJpZGVudGl0eSI6eyJhY2NvdW50X251bWJlciI6IjIzNDU2NyJ9fQ=="}
   end
 
   def orchestrator_tenant_header
@@ -29,7 +37,8 @@ module MockData
 
   def tenants
     {
-      :user => {"id" => "1", "external_tenant" => user_tenant_account}
+      user_tenant_account  => {"id" => "1", "external_tenant" => user_tenant_account},
+      user2_tenant_account => {"id" => "2", "external_tenant" => user2_tenant_account}
     }
   end
 
@@ -45,6 +54,7 @@ module MockData
   def sources_data
     hash = {}
 
+    # Tenant: user
     add_source(hash, '1', :type => :openshift, :uid => 'cacebc33-1ed8-49d4-b4f9-713f2552ee65', :availability_status => 'available')
     add_source(hash, '2', :type => :openshift, :uid => '31b5338b-685d-4056-ba39-d00b4d7f19cc', :availability_status => 'unavailable')
     add_source(hash, '3', :type => :openshift, :uid => '95f057b7-ec11-4f04-b155-e54dcd5b01aa', :availability_status => 'available')
@@ -57,6 +67,8 @@ module MockData
     add_source(hash, '10', :type => :mock, :uid => '8d8d6d75-a1c0-417c-933e-c8f254307cb1')
     add_source(hash, '11', :type => :mock, :uid => '232dce7e-0f89-4601-8796-f3af43618f62')
     add_source(hash, '12', :type => :mock, :uid => 'bfd2da99-722b-4ba3-9606-393c1b8c79f4')
+    # Tenant: user2
+    add_source(hash, '13', :type => :azure, :uid => '2fec8712-ee07-4a4b-9461-dc6dce35cc80', :availability_status => 'available', :tenant => user2_tenant_account)
     hash
   end
 
@@ -76,7 +88,7 @@ module MockData
 
   def topological_sources
     hash = {}
-
+    # tenant: user
     add_source(hash, '1', :topological => true, :type => :openshift, :uid => 'cacebc33-1ed8-49d4-b4f9-713f2552ee65')
     add_source(hash, '2', :topological => true, :type => :openshift, :uid => '31b5338b-685d-4056-ba39-d00b4d7f19cc')
     add_source(hash, '3', :topological => true, :type => :openshift, :uid => '95f057b7-ec11-4f04-b155-e54dcd5b01aa')
@@ -89,6 +101,9 @@ module MockData
     add_source(hash, '10', :topological => true, :type => :mock, :uid => '8d8d6d75-a1c0-417c-933e-c8f254307cb1')
     add_source(hash, '11', :topological => true, :type => :mock, :uid => '232dce7e-0f89-4601-8796-f3af43618f62')
     add_source(hash, '12', :topological => true, :type => :mock, :uid => 'bfd2da99-722b-4ba3-9606-393c1b8c79f4')
+
+    # tenant: user2
+    add_source(hash, '13', :topological => true, :type => :azure, :uid => '2fec8712-ee07-4a4b-9461-dc6dce35cc80', :tenant => user2_tenant_account)
 
     hash
   end
@@ -132,12 +147,12 @@ module MockData
 
     if source.nil?
       sources_data.each_pair do |_type, sources_hash|
-        sources_hash.each_key do |id|
-          hash[id] = add_application(id)
+        sources_hash.each_pair do |id, src|
+          hash[id] = add_application(id, :tenant => src['tenant'])
         end
       end
     else
-      hash[source['id']] = add_application(source['id'])
+      hash[source['id']] = add_application(source['id'], :tenant => source['tenant'])
     end
     hash
   end
@@ -147,12 +162,12 @@ module MockData
 
     if source.nil?
       sources_data.each_pair do |_type, sources_hash|
-        sources_hash.each_key do |id|
-          hash[id] = add_endpoint(id)
+        sources_hash.each_pair do |id, src|
+          hash[id] = add_endpoint(id, :tenant => src['tenant'])
         end
       end
     else
-      hash[source['id']] = add_endpoint(source['id'])
+      hash[source['id']] = add_endpoint(source['id'], :tenant => source['tenant'])
     end
     hash
   end
@@ -162,12 +177,12 @@ module MockData
 
     if source.nil?
       sources_data.each_pair do |_type, sources_hash|
-        sources_hash.each_key do |id|
-          hash[id] = add_authentication(id)
+        sources_hash.each_pair do |id, src|
+          hash[id] = add_authentication(id, :tenant => src['tenant'])
         end
       end
     else
-      hash[source['id']] = add_authentication(source['id'])
+      hash[source['id']] = add_authentication(source['id'], :tenant => source['tenant'])
     end
     hash
   end
@@ -177,12 +192,12 @@ module MockData
 
     if source.nil?
       sources_data.each_pair do |_type, sources_hash|
-        sources_hash.each_key do |id|
-          hash[id] = add_credential(id)
+        sources_hash.each_pair do |id, src|
+          hash[id] = add_credential(id, :tenant => src['tenant'])
         end
       end
     else
-      hash[source['id']] = add_credential(source['id'])
+      hash[source['id']] = add_credential(source['id'], :tenant => source['tenant'])
     end
     hash
   end
@@ -201,7 +216,8 @@ module MockData
       '9'  => '8b14bf8dfa2bc7d74443cd9c4a0d836f1341becb',
       '10' => '5442273b216f7c843de10acc57c33638f7848f74',
       '11' => '3871068443e406fbff7ad6f91bd395bf9482a259',
-      '12' => '9e52c47b63dd968ba2349779a86986eff2f2b860'
+      '12' => '9e52c47b63dd968ba2349779a86986eff2f2b860',
+      '13' => '579824266004c51aedf3237ad262a493c9c5bbe6'
     }
   end
 
@@ -211,14 +227,14 @@ module MockData
 
   private
 
-  def add_source(out, id, topological: false, type:, uid:, availability_status: nil)
+  def add_source(out, id, topological: false, type:, uid:, availability_status: nil, tenant: user_tenant_account)
     out[type] ||= {}
     new_source = if topological
                    {
                      'id'        => id.to_s,
                      'type'      => type.to_s,
                      'uid'       => uid,
-                     'tenant_id' => '1'
+                     'tenant_id' => tenants[tenant]['id']
                    }
                  else
                    {
@@ -227,7 +243,7 @@ module MockData
                      'source_type_id'      => (source_types_data[type] || {})['id'],
                      'name'                => "#{type}#{id}",
                      'uid'                 => uid,
-                     'tenant'              => user_tenant_account,
+                     'tenant'              => tenants[tenant]['external_tenant'],
                      'availability_status' => availability_status
                    }
                  end
@@ -236,22 +252,22 @@ module MockData
   end
 
   # 1:1 source-application
-  def add_application(source_id)
-    { 'id' => source_id.to_s, 'application_type_id' => '1', 'source_id' => source_id.to_s, 'tenant_id' => '1' }
+  def add_application(source_id, tenant: user_tenant_account)
+    { 'id' => source_id.to_s, 'application_type_id' => '1', 'source_id' => source_id.to_s, 'tenant' => tenants[tenant]['external_tenant'] }
   end
 
   # 1:1 source-endpoint
-  def add_endpoint(source_id)
-    { 'id' => source_id.to_s, 'source_id' => source_id.to_s, 'default' => true, 'tenant_id' => '1', "host" => "example.com", "path" => "/api", "port" => 8443, "scheme" => "https"}
+  def add_endpoint(source_id, tenant: user_tenant_account)
+    { 'id' => source_id.to_s, 'source_id' => source_id.to_s, 'default' => true, 'tenant' => tenants[tenant]['external_tenant'], "host" => "example.com", "path" => "/api", "port" => 8443, "scheme" => "https"}
   end
 
   # 1:1:1 source-endpoint-authentication
-  def add_authentication(source_id)
-    { 'id' => source_id.to_s, 'resource_id' => source_id.to_s, 'resource_type' => 'Endpoint', 'tenant_id' => '1'}
+  def add_authentication(source_id, tenant: user_tenant_account)
+    { 'id' => source_id.to_s, 'resource_id' => source_id.to_s, 'resource_type' => 'Endpoint', 'tenant' => tenants[tenant]['external_tenant']}
   end
 
   # 1:1 with authentication (same records)
-  def add_credential(source_id)
-    { 'id' => source_id.to_s, 'username' => 'admin', 'password' => 'smartvm', 'resource_id' => source_id.to_s, 'resource_type' => 'Endpoint', 'tenant_id' => '1'}
+  def add_credential(source_id, tenant: user_tenant_account)
+    { 'id' => source_id.to_s, 'username' => 'admin', 'password' => 'smartvm', 'resource_id' => source_id.to_s, 'resource_type' => 'Endpoint', 'tenant' => tenants[tenant]['external_tenant']}
   end
 end

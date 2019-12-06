@@ -36,7 +36,7 @@ module TopologicalInventory
         messaging_client.subscribe_topic(subscribe_opts) do |message|
           if events.include?(message.message)
             queue.push(:event_name => message.message,
-                       :model   => message.payload)
+                       :model      => message.payload)
           end
         end
       ensure
@@ -49,7 +49,7 @@ module TopologicalInventory
       def scheduler
         loop do
           queue.push(:event_name => "Scheduled.Sync",
-                     :model   => nil)
+                     :model      => nil)
 
           sleep((::Settings.sync.scheduled_event_hours || 1).hours)
         end
