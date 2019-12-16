@@ -44,7 +44,7 @@ module TopologicalInventory
           loop do
             make_openshift_match_database
 
-            sleep 10.seconds
+            sleep (::Settings.sync.poll_time_seconds || 10).seconds
           end
         else
           EventManager.run!(self)
