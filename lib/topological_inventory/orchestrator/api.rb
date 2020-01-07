@@ -118,7 +118,7 @@ module TopologicalInventory
       end
 
       def tenant_header(tenant_account)
-        {"x-rh-identity" => Base64.strict_encode64({"identity" => {"account_number" => tenant_account}}.to_json)}
+        {"x-rh-identity" => Base64.strict_encode64({"identity" => {"account_number" => tenant_account, "user" => { "is_org_admin" => true }}}.to_json)}
       end
 
       # Set of ids for supported applications
