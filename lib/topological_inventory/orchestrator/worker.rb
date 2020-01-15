@@ -214,8 +214,8 @@ module TopologicalInventory
 
               @api.update_topological_inventory_source_refresh_status(source, "deployed")
             rescue TopologicalInventory::Orchestrator::ObjectManager::QuotaError
-              @api.update_topological_inventory_source_refresh_status(source, "quota_limited")
               logger.info("Skipping Deployment Config creation for source #{source["id"]} because it would exceed quota.")
+              @api.update_topological_inventory_source_refresh_status(source, "quota_limited")
 
               # Remove config map and secret if they exist
               source.remove_from_openshift

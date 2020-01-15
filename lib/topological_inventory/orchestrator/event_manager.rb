@@ -94,6 +94,8 @@ module TopologicalInventory
         else
           updater.sync_targets_with_openshift
         end
+      rescue => e
+        logger.error("#{e.message}\n#{e.backtrace.join('\n')}")
       end
 
       def persist_ref

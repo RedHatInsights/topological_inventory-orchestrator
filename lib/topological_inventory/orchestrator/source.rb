@@ -47,7 +47,9 @@ module TopologicalInventory
 
       def remove_from_openshift
         config_map&.remove_source(self)
-        config_map
+        map = config_map
+        self.config_map = nil
+        map
       end
 
       def load_credentials(api)

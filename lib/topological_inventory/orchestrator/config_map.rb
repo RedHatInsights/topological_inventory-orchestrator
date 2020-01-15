@@ -330,10 +330,14 @@ module TopologicalInventory
 
         # Update Time
         custom_yml_data[:updated_at] = Time.now.utc.strftime("%Y-%m-%d %H:%M:%S")
-        # Save Config Map
-        save_config_map(digests.to_json, custom_yml_data.to_yaml)
-        # Update Secret
-        secret&.targeted_delete(source)
+
+        # Will be deleted by remove_source()
+        if sources_count > 0
+          # Save Config Map
+          save_config_map(digests.to_json, custom_yml_data.to_yaml)
+          # Update Secret
+          secret&.targeted_delete(source)
+        end
       end
 
       def save_config_map(digests_json, data_yaml)

@@ -90,7 +90,7 @@ describe TopologicalInventory::Orchestrator::TargetedUpdate do
       subject.add_target('Source', 'create', sources_data[:openshift][id])
 
       stub_api_targeted_init(:source_types => %i[openshift],
-                             :has_one      => { :application => [id], :endpoint => [id], :authentication => [id], :credentials => [id] })
+                             :has_one      => {:application => [id], :endpoint => [id], :authentication => [id], :credentials => [id]})
 
       subject.sync_targets_with_openshift
 
@@ -102,8 +102,8 @@ describe TopologicalInventory::Orchestrator::TargetedUpdate do
       subject.add_target('Authentication', 'create', authentications[id])
 
       stub_api_targeted_init(:source_types => %i[openshift],
-                             :belongs_to   => { :endpoint => [id], :source => [id] },
-                             :has_one      => { :application => [id], :credentials => [id] })
+                             :belongs_to   => {:endpoint => [id], :source => [id]},
+                             :has_one      => {:application => [id], :credentials => [id]})
 
       subject.sync_targets_with_openshift
 
@@ -115,8 +115,8 @@ describe TopologicalInventory::Orchestrator::TargetedUpdate do
       subject.add_target('Endpoint', 'create', endpoints[id])
 
       stub_api_targeted_init(:source_types => %i[openshift],
-                             :belongs_to   => { :source => [id] },
-                             :has_one      => { :application => [id], :authentication => [id], :credentials => [id]})
+                             :belongs_to   => {:source => [id]},
+                             :has_one      => {:application => [id], :authentication => [id], :credentials => [id]})
 
       subject.sync_targets_with_openshift
 
@@ -128,8 +128,8 @@ describe TopologicalInventory::Orchestrator::TargetedUpdate do
       subject.add_target('Application', 'create', applications_data[id])
 
       stub_api_targeted_init(:source_types => %i[openshift],
-                             :belongs_to   => { :source => [id] },
-                             :has_one      => { :endpoint => [id], :authentication => [id], :credentials => [id] })
+                             :belongs_to   => {:source => [id]},
+                             :has_one      => {:endpoint => [id], :authentication => [id], :credentials => [id]})
 
       subject.sync_targets_with_openshift
 
@@ -145,8 +145,8 @@ describe TopologicalInventory::Orchestrator::TargetedUpdate do
       subject.add_target('Application', 'create', applications_data[id])
 
       stub_api_targeted_init(:source_types => %i[openshift],
-                             :belongs_to   => { :endpoint => [id], :source => [id]},
-                             :has_one      => { :application => [id], :endpoint => [id], :authentication => [id], :credentials => [id]})
+                             :belongs_to   => {:endpoint => [id], :source => [id]},
+                             :has_one      => {:application => [id], :endpoint => [id], :authentication => [id], :credentials => [id]})
 
       subject.sync_targets_with_openshift
 
@@ -161,8 +161,8 @@ describe TopologicalInventory::Orchestrator::TargetedUpdate do
       subject.add_target('Application', 'create', applications_data[@id2])
 
       stub_api_targeted_init(:source_types => %i[openshift amazon],
-                             :belongs_to   => { :endpoint => [@id2], :source => [@id2] },
-                             :has_one      => { :application => [@id1, @id2], :endpoint => [@id1, @id2], :authentication => [@id1, @id2], :credentials => [@id1, @id2]})
+                             :belongs_to   => {:endpoint => [@id2], :source => [@id2]},
+                             :has_one      => {:application => [@id1, @id2], :endpoint => [@id1, @id2], :authentication => [@id1, @id2], :credentials => [@id1, @id2]})
 
       subject.sync_targets_with_openshift
 
@@ -184,10 +184,10 @@ describe TopologicalInventory::Orchestrator::TargetedUpdate do
 
       stub_api_targeted_init(:source_types => %i[openshift amazon],
                              :belongs_to   => {},
-                             :has_one      => { :application    => [@id1, @id2, @id3, @id4],
-                                                :endpoint       => [@id1, @id2, @id3, @id4],
-                                                :authentication => [@id1, @id2, @id3, @id4],
-                                                :credentials    => [@id1, @id2, @id3, @id4]})
+                             :has_one      => {:application    => [@id1, @id2, @id3, @id4],
+                                               :endpoint       => [@id1, @id2, @id3, @id4],
+                                               :authentication => [@id1, @id2, @id3, @id4],
+                                               :credentials    => [@id1, @id2, @id3, @id4]})
 
       subject.sync_targets_with_openshift
 
@@ -263,10 +263,10 @@ describe TopologicalInventory::Orchestrator::TargetedUpdate do
       # Auth/Credentials are not loaded for Source 2, because it has only 'destroy' events
       stub_api_targeted_init(:source_types      => %i[openshift amazon],
                              :belongs_to        => {:source => [@id3]},
-                             :has_one           => { :application    => [@id1, @id2, @id3, @id4, id5],
-                                                     :endpoint       => [@id1, @id4, id5],
-                                                     :authentication => [@id1, @id3, @id4, id5],
-                                                     :credentials    => [@id1, @id3, @id4, id5]},
+                             :has_one           => {:application    => [@id1, @id2, @id3, @id4, id5],
+                                                    :endpoint       => [@id1, @id4, id5],
+                                                    :authentication => [@id1, @id3, @id4, id5],
+                                                    :credentials    => [@id1, @id3, @id4, id5]},
                              :request_app_types => false)
 
       subject.sync_targets_with_openshift
@@ -310,7 +310,7 @@ describe TopologicalInventory::Orchestrator::TargetedUpdate do
                              :request_app_types => false)
 
       stub_api_applications_get(:request_params => "#{request_filter(:source_id, [@id3])}&#{default_applications_filter}",
-                                :response       => list([{ 'id' => '2', 'application_type_id' => '3', 'source_id' => @id3, 'tenant' => user_tenant_account}]),
+                                :response       => list([{'id' => '2', 'application_type_id' => '3', 'source_id' => @id3, 'tenant' => user_tenant_account}]),
                                 :tenant_header  => user_tenant_header)
 
       subject.sync_targets_with_openshift
@@ -329,22 +329,21 @@ describe TopologicalInventory::Orchestrator::TargetedUpdate do
 
       stub_api_targeted_init(:source_types  => %i[azure],
                              :belongs_to    => {},
-                             :has_one       => { :application    => [id1],
-                                                 :endpoint       => [id1],
-                                                 :authentication => [id1],
-                                                 :credentials    => [id1]},
+                             :has_one       => {:application    => [id1],
+                                                :endpoint       => [id1],
+                                                :authentication => [id1],
+                                                :credentials    => [id1]},
                              :tenant_header => user_tenant_header)
       stub_api_targeted_init(:source_types      => %i[azure],
                              :belongs_to        => {},
-                             :has_one           => { :application    => [id2],
-                                                     :endpoint       => [id2],
-                                                     :authentication => [id2],
-                                                     :credentials    => [id2]},
+                             :has_one           => {:application    => [id2],
+                                                    :endpoint       => [id2],
+                                                    :authentication => [id2],
+                                                    :credentials    => [id2]},
                              :request_app_types => false,
                              :tenant_header     => user2_tenant_header)
       subject.sync_targets_with_openshift
 
-      # TODO: on-premise sources with different tenants can't use shared collector
       assert_openshift_objects_count(1)
       assert_openshift_objects_data(sources_data[:azure][id1])
       assert_openshift_objects_data(sources_data[:azure][id2])

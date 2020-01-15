@@ -253,21 +253,21 @@ module MockData
 
   # 1:1 source-application
   def add_application(source_id, tenant: user_tenant_account)
-    { 'id' => source_id.to_s, 'application_type_id' => '1', 'source_id' => source_id.to_s, 'tenant' => tenants[tenant]['external_tenant'] }
+    {'id' => source_id.to_s, 'application_type_id' => '1', 'source_id' => source_id.to_s, 'tenant' => tenants[tenant]['external_tenant']}
   end
 
   # 1:1 source-endpoint
   def add_endpoint(source_id, tenant: user_tenant_account)
-    { 'id' => source_id.to_s, 'source_id' => source_id.to_s, 'default' => true, 'tenant' => tenants[tenant]['external_tenant'], "host" => "example.com", "path" => "/api", "port" => 8443, "scheme" => "https"}
+    {'id' => source_id.to_s, 'source_id' => source_id.to_s, 'default' => true, 'tenant' => tenants[tenant]['external_tenant'], "host" => "example.com", "path" => "/api", "port" => 8443, "scheme" => "https"}
   end
 
   # 1:1:1 source-endpoint-authentication
   def add_authentication(source_id, tenant: user_tenant_account)
-    { 'id' => source_id.to_s, 'resource_id' => source_id.to_s, 'resource_type' => 'Endpoint', 'tenant' => tenants[tenant]['external_tenant']}
+    {'id' => source_id.to_s, 'resource_id' => source_id.to_s, 'resource_type' => 'Endpoint', 'tenant' => tenants[tenant]['external_tenant']}
   end
 
   # 1:1 with authentication (same records)
   def add_credential(source_id, tenant: user_tenant_account)
-    { 'id' => source_id.to_s, 'username' => 'admin', 'password' => 'smartvm', 'resource_id' => source_id.to_s, 'resource_type' => 'Endpoint', 'tenant' => tenants[tenant]['external_tenant']}
+    {'id' => source_id.to_s, 'username' => 'admin', 'password' => 'smartvm', 'resource_id' => source_id.to_s, 'resource_type' => 'Endpoint', 'tenant' => tenants[tenant]['external_tenant']}
   end
 end
