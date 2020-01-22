@@ -3,6 +3,9 @@ require "topological_inventory/orchestrator/logger"
 module TopologicalInventory
   module Orchestrator
     class Api
+      @@cache_start = nil
+      @@cache_lock = Mutex.new
+
       include Logging
 
       attr_accessor :sources_api, :sources_internal_api, :topology_api, :topology_internal_api
@@ -121,13 +124,21 @@ module TopologicalInventory
         {"x-rh-identity" => Base64.strict_encode64({"identity" => {"account_number" => tenant_account}}.to_json)}
       end
 
-      # Set of ids for supported applications
-      def supported_application_type_ids
-        return @supported_application_type_ids if @supported_application_type_ids.present?
+      def supported_application_type_ids(timeout = 300)
+        @@cache_lock.synchronize do
+          if @@cache_start.nil? || @@cache_start <= timeout.seconds.ago
+            @@supported_application_type_ids = load_supported_application_type_ids
+            @@cache_start = Time.now
+          end
+        end
+        @@supported_application_type_ids
+      end
 
+      # Set of ids for supported applications
+      def load_supported_application_type_ids
         topology_app_name = "/insights/platform/topological-inventory"
 
-        @supported_application_type_ids = each_application_type.select do |application_type|
+        each_application_type.select do |application_type|
           application_type["name"] == topology_app_name || application_type["dependent_applications"]&.include?(topology_app_name)
         end.map do |application_type|
           application_type["id"]

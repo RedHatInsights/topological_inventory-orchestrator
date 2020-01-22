@@ -25,6 +25,9 @@ describe TopologicalInventory::Orchestrator::TargetedUpdate do
   end
 
   before do
+    # Clear cache
+    TopologicalInventory::Orchestrator::Api.class_variable_set :@@cache_start, nil
+
     # Turn off logger
     allow(TopologicalInventory::Orchestrator).to receive(:logger).and_return(double('logger').as_null_object)
 
