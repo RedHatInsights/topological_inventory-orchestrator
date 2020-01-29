@@ -20,11 +20,11 @@ module MockData
   end
 
   def user_tenant_header
-    {"x-rh-identity" => "eyJpZGVudGl0eSI6eyJhY2NvdW50X251bWJlciI6IjEyMzQ1In19"}
+    {"x-rh-identity" => "eyJpZGVudGl0eSI6eyJhY2NvdW50X251bWJlciI6IjEyMzQ1IiwidXNlciI6eyJpc19vcmdfYWRtaW4iOnRydWV9fX0="}
   end
 
   def orchestrator_tenant_header
-    {"x-rh-identity" => "eyJpZGVudGl0eSI6eyJhY2NvdW50X251bWJlciI6InN5c3RlbV9vcmNoZXN0cmF0b3IifX0="}
+    {"x-rh-identity" => "eyJpZGVudGl0eSI6eyJhY2NvdW50X251bWJlciI6InN5c3RlbV9vcmNoZXN0cmF0b3IiLCJ1c2VyIjp7ImlzX29yZ19hZG1pbiI6dHJ1ZX19fQ==" }
   end
 
   def tenants
