@@ -1,8 +1,8 @@
 collectors:
   sources_per_collector:
-    amazon: 2
-    ansible-tower: 2
-    azure: 2
+    amazon: 10
+    ansible-tower: 10
+    azure: 10
     openshift: 2
 sync:
   poll_time_seconds: 10
