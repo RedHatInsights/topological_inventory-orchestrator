@@ -89,8 +89,10 @@ module TopologicalInventory
         @source_types_by_id = {}
 
         @api.each_source_type do |attributes|
-          @source_types_by_id[attributes['id']] = SourceType.new(attributes)
-          logger.debug("Loaded Source type: #{attributes['name']} | #{@source_types_by_id[attributes['id']].sources_per_collector} sources per config map")
+          if (source_type = SourceType.new(attributes)).supported_source_type?
+            logger.debug("Loaded Source type: #{attributes['name']} | #{source_type.sources_per_collector} sources per config map")
+          end
+          @source_types_by_id[attributes['id']] = source_type
         end
       end
 
