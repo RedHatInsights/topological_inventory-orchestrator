@@ -36,10 +36,20 @@ module TopologicalInventory
         if config_map.nil?
           deploy_new_collector(object_manager)
         end
+
+        config_map
+      end
+
+      def update_in_openshift
+        config_map&.update_source(self)
+        config_map
       end
 
       def remove_from_openshift
         config_map&.remove_source(self)
+        map = config_map
+        self.config_map = nil
+        map
       end
 
       def load_credentials(api)
@@ -56,8 +66,8 @@ module TopologicalInventory
         @digest = value
       end
 
-      def digest
-        return @digest if @digest.present?
+      def digest(reload: false)
+        return @digest if @digest.present? && !reload
         return nil if attributes.nil? || endpoint.nil? || authentication.nil? || credentials.nil?
 
         @digest = compute_digest(digest_values)

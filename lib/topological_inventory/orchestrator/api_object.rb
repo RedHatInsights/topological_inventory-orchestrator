@@ -3,7 +3,7 @@ module TopologicalInventory
     class ApiObject
       include Logging
 
-      delegate :[], :to => :attributes
+      delegate :[], :[]=, :to => :attributes
 
       attr_accessor :attributes
 

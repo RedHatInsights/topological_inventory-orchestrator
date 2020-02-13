@@ -1,3 +1,5 @@
+require_relative "kube_resource"
+
 module TopologicalInventory
   module Orchestrator
     module TestModels
@@ -54,13 +56,13 @@ module TopologicalInventory
         end
 
         # Noop, _map was updated outside
-        def update_config_map(_map)
-          nil
+        def update_config_map(map)
+          add_definition(config_maps, map.to_h)
         end
 
         # Noop, _secret was updated outside
-        def update_secret(_secret)
-          nil
+        def update_secret(secret)
+          add_definition(secrets, secret.to_h)
         end
 
         # Now only for scaling, skipped
@@ -109,7 +111,7 @@ module TopologicalInventory
         def add_definition(collection, hash)
           raise "Missing name when adding! #{hash[:metadata].inspect}" if hash[:metadata][:name].blank?
 
-          collection[hash[:metadata][:name]] = RecursiveOpenStruct.new(hash)
+          collection[hash[:metadata][:name]] = TopologicalInventory::Orchestrator::TestModels::KubeResource.new(hash)
         end
       end
     end

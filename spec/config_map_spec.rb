@@ -65,6 +65,7 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
       it "updates map's data and secret" do
         digest, digest2 = "12345", "23456"
         allow(config_map).to receive_messages(:available? => true,
+                                              :secret     => nil,
                                               :digests    => [])
         allow(source).to receive_messages(:digest           => digest,
                                           :endpoint         => endpoint1,
@@ -90,8 +91,8 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
         # Compare it with endpoints and source uids
         loaded_data = YAML.load(config_map_data['custom.yml'])
         expected_data = [
-          endpoint1.transform_keys!(&:to_sym).merge(:source => source['uid'], :source_id => source['id'], :source_name => source['name']),
-          endpoint2.transform_keys!(&:to_sym).merge(:source => source2['uid'], :source_id => source2['id'], :source_name => source2['name'])
+          endpoint1.transform_keys!(&:to_sym).merge(:source => source['uid'], :source_id => source['id'], :source_name => source['name'], :digest => digest),
+          endpoint2.transform_keys!(&:to_sym).merge(:source => source2['uid'], :source_id => source2['id'], :source_name => source2['name'], :digest => digest2)
         ]
         expect(loaded_data[:sources]).to eq(expected_data)
       end
@@ -187,7 +188,7 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
         # Compare it with endpoints and source uids
         loaded_data = YAML.load(config_map_data['custom.yml'])
         expected_data = [
-          endpoint2.transform_keys!(&:to_sym).merge(:source => source2['uid'], :source_id => source2['id'], :source_name => source2['name'])
+          endpoint2.transform_keys!(&:to_sym).merge(:source => source2['uid'], :source_id => source2['id'], :source_name => source2['name'], :digest => digest2)
         ]
         expect(loaded_data[:sources]).to eq(expected_data)
         expect(config_map.sources).to eq([source2])

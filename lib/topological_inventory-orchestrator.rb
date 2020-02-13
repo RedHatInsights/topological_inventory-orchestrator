@@ -8,3 +8,4 @@ module TopologicalInventory
 end
 
 require "topological_inventory/orchestrator/worker"
+require "topological_inventory/orchestrator/targeted_update"

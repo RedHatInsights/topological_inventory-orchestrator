@@ -2,6 +2,7 @@ module Functions
   include MockData
 
   # API call stubs for Source, endpoint, authentication(and credentials)
+  # For Full update
   def stub_api_source_calls(source)
     stub_api_source_get(source, show(source))
     return unless source_available?(source)
@@ -27,19 +28,52 @@ module Functions
     expect(RestClient).to receive(:patch).with(path, body, tenant_header)
   end
 
-  def stub_api_source_types_get(response)
-    stub_rest_get("#{sources_api}/source_types", orchestrator_tenant_header, response)
+  def stub_api_common_get(resource_name, request_params, response,
+                          tenant_header = orchestrator_tenant_header,
+                          api = sources_api)
+    params = request_params.present? ? "?#{request_params}" : ''
+    stub_rest_get("#{api}/#{resource_name}#{params}", tenant_header, response)
   end
 
-  def stub_api_application_types_get(response)
-    stub_rest_get("#{sources_api}/application_types", orchestrator_tenant_header, response)
+  # For Targeted update
+  def stub_api_source_types_get(request_params: nil, response:)
+    stub_api_common_get('source_types', request_params, response)
+  end
+
+  # For Targeted update
+  def stub_api_sources_get(request_params: nil, response:, tenant_header: user_tenant_header)
+    stub_api_common_get('sources', request_params, response, tenant_header, topology_api)
+    stub_api_common_get('sources', request_params, response, tenant_header, sources_api)
+  end
+
+  # For Targeted update
+  def stub_api_application_types_get(request_params: nil, response:)
+    stub_api_common_get('application_types', request_params, response)
   end
 
   # Filter is based on TopologicalInventory::Orchestrator::Api#supported_applications_url
   # and mock_data.rb:application_types_data (id [1,3] includes topological-inventory)
-  def stub_api_applications_get(response)
-    application_query = "filter[application_type_id][eq][]=1&filter[application_type_id][eq][]=3"
-    stub_rest_get("#{sources_api}/applications?#{application_query}", user_tenant_header, response)
+  def stub_api_applications_get(request_params: default_applications_filter, response:, tenant_header: user_tenant_header)
+    stub_api_common_get('applications', request_params, response, tenant_header)
+  end
+
+  def default_applications_filter
+    "filter[application_type_id][eq][]=1&filter[application_type_id][eq][]=3"
+  end
+
+  # For Targeted update
+  def stub_api_endpoints_get(request_params: nil, response:, tenant_header: user_tenant_header)
+    stub_api_common_get('endpoints', request_params, response, tenant_header)
+  end
+
+  # For Targeted update
+  def stub_api_authentications_get(request_params: nil, response:, tenant_header: user_tenant_header)
+    stub_api_common_get('authentications', request_params, response, tenant_header)
+  end
+
+  # For Targeted update
+  def stub_api_credentials_get(id, response:, tenant_header: user_tenant_header)
+    stub_rest_get("#{sources_api(:internal => true)}/authentications/#{id}?expose_encrypted_attribute[]=password", tenant_header, response)
   end
 
   def stub_api_tenants_get(response)
@@ -50,13 +84,14 @@ module Functions
     stub_rest_get("#{sources_api}/sources/#{source["id"]}", user_tenant_header, response)
   end
 
-  def stub_api_topology_sources_get(response)
-    stub_rest_get("#{topology_api}/sources", user_tenant_header, response)
+  def stub_api_topology_sources_get(request_params: nil, response:, tenant_header: user_tenant_header)
+    params = request_params.present? ? "?#{request_params}" : ''
+    stub_rest_get("#{topology_api}/sources#{params}", tenant_header, response)
   end
 
-  def stub_api_topology_sources_patch(source, body)
+  def stub_api_topology_sources_patch(source, body, tenant_header: user_tenant_header)
     path = "#{topology_api(:internal => true)}/sources/#{source["id"]}"
-    stub_rest_patch(path, body, user_tenant_header)
+    stub_rest_patch(path, body, tenant_header)
   end
 
   def stub_api_source_refresh_status_patch(source, status)
@@ -71,12 +106,12 @@ module Functions
   # GET <tp-inv_api/sources
   #
   # @param[String<JSON>] source_types, tenants, topology_sources
-  def stub_api_init(source_types:, tenants:, application_types:, applications:, topology_sources:)
-    stub_api_source_types_get(source_types)
-    stub_api_applications_get(applications)
-    stub_api_application_types_get(application_types)
+  def stub_api_init(source_types:, tenants:, application_types: nil, applications:, topology_sources:)
+    stub_api_source_types_get(:response => source_types)
+    stub_api_applications_get(:response => applications)
+    stub_api_application_types_get(:response => application_types) if application_types
     stub_api_tenants_get(tenants)
-    stub_api_topology_sources_get(topology_sources)
+    stub_api_topology_sources_get(:response => topology_sources)
   end
 
   def list(data)
@@ -92,6 +127,11 @@ module Functions
       Settings.add_source!(hash)
       Settings.reload!
     end
+  end
+
+  def request_filter(filter_key, filter_value, limit: nil)
+    @api ||= TopologicalInventory::Orchestrator::TargetedApi.new(:sources_api => sources_api, :topology_api => topology_api)
+    @api.send(:make_params_string, filter_key, filter_value, limit)
   end
 
   def init_config(openshift: 1, amazon: 1, azure: 1, mock: 1)
@@ -112,12 +152,13 @@ module Functions
     expect(kube_client.secrets.size).to eq(cnt)
   end
 
-  def assert_openshift_objects_data(source_data, missing: false)
-    config_uid = assert_source_in_config_maps(source_data, :missing => missing)
-    assert_source_in_secrets(source_data, config_uid, :missing => missing)
+  def assert_openshift_objects_data(source_data, endpoint_data: nil, auth_data: nil, missing: false)
+    config_uid = assert_source_in_config_maps(source_data, :endpoint_data => endpoint_data, :missing => missing)
+    assert_source_in_secrets(source_data, config_uid, :auth_data => auth_data, :missing => missing)
   end
 
-  def assert_source_in_config_maps(source_data, missing: false)
+  # @param endpoint_data [Hash] if not present, data are loaded from defaults (mock_data.rb#endpoints)
+  def assert_source_in_config_maps(source_data, endpoint_data: nil, missing: false)
     found_digests, found_in_yaml = 0, 0
     config_uid = nil
 
@@ -148,8 +189,10 @@ module Functions
           found_in_yaml += 1
           expect(found_digest)
 
+          expect(source_data['name']).to eq(yaml_source[:source_name])
+
           # Check that endpoint data are written to custom.yml
-          endpoint = endpoints(source_data)[source_data['id']]
+          endpoint = endpoint_data.presence || endpoints(source_data)[source_data['id']]
 
           expect(endpoint['scheme']).to eq(yaml_source[:scheme])
           expect(endpoint['host']).to eq(yaml_source[:host])
@@ -172,16 +215,17 @@ module Functions
     config_uid
   end
 
-  def assert_source_in_secrets(source_data, config_uid, missing: false)
+  # @param auth_data [Hash] if not present, data are loaded from defaults (mock_data.rb#authentications)
+  def assert_source_in_secrets(source_data, config_uid, auth_data: nil, missing: false)
     found_cnt = 0
     kube_client.secrets.each_value do |secret|
-      expect(secret.stringData.credentials).to be_present
-      data = JSON.parse(secret.stringData.credentials)
+      expect(secret.data.credentials).to be_present
+      data = JSON.parse(Base64.decode64(secret.data.credentials))
 
       if (secret_creds = data[source_data['uid']]).present?
         found_cnt += 1
         # Check that authentication data are written to secret's data
-        auth = credentials(source_data)[source_data['id']]
+        auth = auth_data.presence || credentials(source_data)[source_data['id']]
 
         expect(auth['username']).to eq(secret_creds['username'])
         expect(auth['password']).to eq(secret_creds['password'])

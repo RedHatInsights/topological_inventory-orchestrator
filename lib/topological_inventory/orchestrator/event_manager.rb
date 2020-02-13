@@ -36,7 +36,7 @@ module TopologicalInventory
         messaging_client.subscribe_topic(subscribe_opts) do |message|
           if events.include?(message.message)
             queue.push(:event_name => message.message,
-                       :model_id   => message.payload['id'])
+                       :model      => message.payload)
           end
         end
       ensure
@@ -49,7 +49,7 @@ module TopologicalInventory
       def scheduler
         loop do
           queue.push(:event_name => "Scheduled.Sync",
-                     :model_id   => nil)
+                     :model      => nil)
 
           sleep((::Settings.sync.scheduled_event_hours || 1).hours)
         end
@@ -62,22 +62,40 @@ module TopologicalInventory
       def processor
         loop do
           events = []
+          # TODO: split to batches for big queues
           events << queue.pop until queue.empty?
 
-          # Sources UI (through API) generates multiple events at the same time
-          # One sync is sufficient
-          if (event = events.first).present?
-            process_event(event[:event_name], event[:model_id])
+          if events.present?
+            process_events(events)
           end
 
           sleep((::Settings.sync.poll_time_seconds || 10).seconds)
         end
       end
 
-      def process_event(event_name, model_id = nil)
-        msg = "Sync started by event #{event_name}: id [#{model_id.presence || '---'}]"
-        logger.send(model_id.present? ? :info : :debug, msg) # Info log only for Sources API events
-        worker.make_openshift_match_database
+      # If there is full sync event, skip all targeted events
+      def process_events(events)
+        updater = TargetedUpdate.new(worker)
+
+        full_sync = false
+
+        events.each do |event|
+          if event[:event_name] == 'Scheduled.Sync'
+            full_sync = true
+            break
+          end
+          model, action = event[:event_name].split('.')
+          updater.add_target(model, action, event[:model])
+        end
+
+        if full_sync
+          updater = nil # For Garbage collector
+          worker.make_openshift_match_database
+        else
+          updater.sync_targets_with_openshift
+        end
+      rescue => e
+        logger.error("#{e.message}\n#{e.backtrace.join('\n')}")
       end
 
       def persist_ref
