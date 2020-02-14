@@ -12,7 +12,7 @@ describe TopologicalInventory::Orchestrator::Worker do
 
   # Predefined responses
   let(:empty_list_response) { list([]) }
-  let(:tenants_response) { list([tenants[:user]]) }
+  let(:tenants_response) { list([tenants[user_tenant_account]]) }
   let(:source_types_response) { list(source_types_data.values) }
   let(:application_types_response) { list(application_types_data) }
   let(:applications_response) { list(applications_data.values) }
@@ -23,6 +23,9 @@ describe TopologicalInventory::Orchestrator::Worker do
   end
 
   before do
+    # Clear cache
+    TopologicalInventory::Orchestrator::Api.class_variable_set :@@cache_start, nil
+
     # Turn off logger
     allow(TopologicalInventory::Orchestrator).to receive(:logger).and_return(double('logger').as_null_object)
 

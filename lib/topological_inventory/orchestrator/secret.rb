@@ -28,6 +28,7 @@ module TopologicalInventory
       end
 
       # Updating secret values for all sources attached to related configmap
+      # Full update
       def update!
         logger.info("Updating Secret #{self}")
 
@@ -39,6 +40,52 @@ module TopologicalInventory
         else
           logger.warn("Updating Secret - not found: #{self}")
         end
+      end
+
+      # Update or insert
+      # Targeted update
+      def upsert_one!(source)
+        logger.info("Updating Secret #{self}")
+
+        if openshift_object.present?
+          resource = openshift_object.data
+
+          credentials = JSON.parse(Base64.decode64(resource.credentials))
+          credentials[source['uid']] = source_to_data(source)
+          credentials['updated_at'] = Time.now.utc.strftime("%Y-%m-%d %H:%M:%S")
+
+          openshift_object.stringData = { "credentials" => credentials.to_json }
+          object_manager.update_secret(openshift_object)
+
+          logger.info("[OK] Updated Secret #{self}")
+        else
+          logger.warn("Updating Secret - not found: #{self}")
+        end
+      rescue JSON::ParserError => e
+        logger.error("[ERROR] Updating secret #{self}: #{e.message}")
+      end
+
+      def targeted_delete(source)
+        logger.info("Deleting #{source} from Secret #{self}")
+
+        if openshift_object.present?
+          resource = openshift_object.data
+
+          credentials = JSON.parse(Base64.decode64(resource.credentials))
+
+          credentials.delete(source['uid'])
+
+          credentials['updated_at'] = Time.now.utc.strftime("%Y-%m-%d %H:%M:%S")
+
+          openshift_object.stringData = { "credentials" => credentials.to_json }
+          object_manager.update_secret(openshift_object)
+
+          logger.info("[OK] Updated Secret #{self}")
+        else
+          logger.warn("Updating Secret - not found: #{self}")
+        end
+      rescue JSON::ParserError => e
+        logger.error("[ERROR] Updating secret #{self}: #{e.message}")
       end
 
       def delete_in_openshift
@@ -78,10 +125,7 @@ module TopologicalInventory
         config_map.sources.each do |source|
           next unless source.from_sources_api # don't add to secret if removed from API
 
-          data[source['uid']] = {
-            'username' => source.credentials['username'],
-            'password' => source.credentials['password']
-          }
+          data[source['uid']] = source_to_data(source)
 
           # Azure has extra parameter "tenant_id"
           if source.source_type&.azure?
@@ -91,6 +135,13 @@ module TopologicalInventory
         end
 
         { "credentials" => data.to_json }
+      end
+
+      def source_to_data(source)
+        {
+          'username' => source.credentials['username'],
+          'password' => source.credentials['password']
+        }
       end
     end
   end

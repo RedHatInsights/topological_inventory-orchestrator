@@ -18,7 +18,6 @@ require "topological_inventory/orchestrator/secret"
 require "topological_inventory/orchestrator/source_type"
 require "topological_inventory/orchestrator/source"
 
-
 module TopologicalInventory
   module Orchestrator
     # Entrypoint
@@ -40,7 +39,7 @@ module TopologicalInventory
       end
 
       def run
-        if ENV['NO_KAFKA']
+        if ENV['NO_KAFKA'].to_i == 1
           loop do
             make_openshift_match_database
 
@@ -75,7 +74,7 @@ module TopologicalInventory
         remove_old_secrets
       end
 
-      private
+      protected
 
       def object_manager
         @object_manager ||= ObjectManager.new
@@ -201,6 +200,7 @@ module TopologicalInventory
           # a) source deleted from Sources API
           #
           if !source.from_sources_api && source.config_map.present?
+            # TODO: Don't remove if not last source in config map
             @config_maps_by_uid.delete(source.config_map.uid) if source.config_map.present?
             @sources_by_digest.delete(source.digest)
 
@@ -216,8 +216,8 @@ module TopologicalInventory
 
               @api.update_topological_inventory_source_refresh_status(source, "deployed")
             rescue TopologicalInventory::Orchestrator::ObjectManager::QuotaError
-              @api.update_topological_inventory_source_refresh_status(source, "quota_limited")
               logger.info("Skipping Deployment Config creation for source #{source["id"]} because it would exceed quota.")
+              @api.update_topological_inventory_source_refresh_status(source, "quota_limited")
 
               # Remove config map and secret if they exist
               source.remove_from_openshift
