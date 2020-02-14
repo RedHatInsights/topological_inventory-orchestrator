@@ -28,7 +28,7 @@ module MockData
   end
 
   def user2_tenant_header
-    {"x-rh-identity" => "eyJpZGVudGl0eSI6eyJhY2NvdW50X251bWJlciI6IjIzNDU2NyJ9fQ=="}
+    {"x-rh-identity" => "eyJpZGVudGl0eSI6eyJhY2NvdW50X251bWJlciI6IjIzNDU2NyIsInVzZXIiOnsiaXNfb3JnX2FkbWluIjp0cnVlfX19"}
   end
 
   def orchestrator_tenant_header
