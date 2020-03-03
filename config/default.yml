@@ -1,7 +1,7 @@
 collectors:
   sources_per_collector:
     amazon: 10
-    ansible-tower: 10
+    ansible-tower: 2
     azure: 10
     openshift: 2
 sync:
