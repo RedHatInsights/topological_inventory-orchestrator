@@ -59,4 +59,68 @@ describe TopologicalInventory::Orchestrator::ObjectManager do
       end.to raise_error(TopologicalInventory::Orchestrator::ObjectManager::QuotaMemoryRequestExceeded)
     end
   end
+
+  describe "#detect_openshift_connection (private)" do
+    let(:instance)          { described_class.new }
+    let(:kube_service_host) { "kube.example.com" }
+    let(:kube_service_port) { 123 }
+    let(:v3_connection)     { instance_double(Kubeclient::Client, "v3_connection") }
+    let(:v4_connection)     { instance_double(Kubeclient::Client, "v4_connection") }
+
+    let(:v3_uri) do
+      URI::HTTPS.build(
+        :host => kube_service_host,
+        :port => kube_service_port,
+        :path => "/oapi"
+      )
+    end
+
+    let(:v4_uri) do
+      URI::HTTPS.build(
+        :host => kube_service_host,
+        :port => kube_service_port,
+        :path => "/apis"
+      )
+    end
+
+    let(:kube_resource_error) do
+      Kubeclient::ResourceNotFoundError.new(404, "not found", nil)
+    end
+
+    around do |example|
+      host = ENV["KUBERNETES_SERVICE_HOST"]
+      port = ENV["KUBERNETES_SERVICE_PORT"]
+      ENV["KUBERNETES_SERVICE_HOST"] = kube_service_host
+      ENV["KUBERNETES_SERVICE_PORT"] = kube_service_port.to_s
+
+      example.run
+
+      ENV["KUBERNETES_SERVICE_HOST"] = host
+      ENV["KUBERNETES_SERVICE_PORT"] = port
+    end
+
+    before { expect(instance).to receive(:raw_connect).with(v3_uri).and_return(v3_connection) }
+
+    it "returns the v3 connection when it is available" do
+      expect(v3_connection).to receive(:discover).and_return(true)
+      expect(instance.send(:detect_openshift_connection)).to eq(v3_connection)
+    end
+
+    context "when the v3 connection is not available" do
+      before do
+        expect(v3_connection).to receive(:discover).and_raise(kube_resource_error)
+        expect(instance).to receive(:raw_connect).with(v4_uri, "apps.openshift.io/v1").and_return(v4_connection)
+      end
+
+      it "returns the v4 connection when it is available" do
+        expect(v4_connection).to receive(:discover).and_return(true)
+        expect(instance.send(:detect_openshift_connection)).to eq(v4_connection)
+      end
+
+      it "raises when no connection is available" do
+        expect(v4_connection).to receive(:discover).and_raise(kube_resource_error)
+        expect { instance.send(:detect_openshift_connection) }.to raise_error(RuntimeError)
+      end
+    end
+  end
 end

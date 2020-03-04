@@ -118,14 +118,14 @@ module TopologicalInventory
       private
 
       def connection
-        @connection ||= raw_connect(manager_uri("/oapi"))
+        @connection ||= detect_openshift_connection
       end
 
       def kube_connection
         @kube_connection ||= raw_connect(manager_uri("/api"))
       end
 
-      def raw_connect(uri)
+      def raw_connect(uri, version = "v1")
         ssl_options = {
           :verify_ssl => OpenSSL::SSL::VERIFY_PEER,
           :ca_file    => CA_CERT_FILE
@@ -133,6 +133,7 @@ module TopologicalInventory
 
         Kubeclient::Client.new(
           uri,
+          version,
           :auth_options => { :bearer_token_file => TOKEN_FILE },
           :ssl_options  => ssl_options
         )
@@ -144,6 +145,23 @@ module TopologicalInventory
           :port => ENV["KUBERNETES_SERVICE_PORT"],
           :path => path
         )
+      end
+
+      def detect_openshift_connection
+        v3_connection = raw_connect(manager_uri("/oapi"))
+        return v3_connection if client_connection_valid?(v3_connection)
+
+        v4_connection = raw_connect(manager_uri("/apis"), "apps.openshift.io/v1")
+        return v4_connection if client_connection_valid?(v4_connection)
+
+        raise "Failed to detect a valid OpenShift connection"
+      end
+
+      def client_connection_valid?(conn)
+        conn.discover
+        true
+      rescue Kubeclient::ResourceNotFoundError
+        false
       end
 
       def quota_defined?
