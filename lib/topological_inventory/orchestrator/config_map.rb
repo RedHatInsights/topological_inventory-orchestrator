@@ -348,7 +348,7 @@ module TopologicalInventory
       end
 
       def digests
-        return @digests if @digests.present?
+        return @digests if @digests
 
         @digests = if openshift_object&.data&.digests.present?
                      JSON.parse(openshift_object.data.digests)

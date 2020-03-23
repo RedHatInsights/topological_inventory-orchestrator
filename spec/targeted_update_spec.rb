@@ -206,6 +206,7 @@ describe TopologicalInventory::Orchestrator::TargetedUpdate do
     it "updates sources and keeps others unchanged" do
       changed_source = sources_data[:openshift][@id1].merge('name' => 'Changed!')
       changed_endpoint = endpoints[@id3].merge('host' => 'my-testing-url.com')
+      changed_digest = 'eb5c76b3094e1f3691e6c710403acdcf17c92e04'
 
       subject.add_target('Source', 'update', changed_source)
       subject.add_target('Endpoint', 'update', changed_endpoint)
@@ -214,13 +215,12 @@ describe TopologicalInventory::Orchestrator::TargetedUpdate do
                              :belongs_to        => {:source => [@id3]},
                              :has_one           => {:application => [@id1, @id3], :endpoint => [@id1], :authentication => [@id1, @id3], :credentials => [@id1, @id3]},
                              :request_app_types => false)
-
       subject.sync_targets_with_openshift
 
       assert_openshift_objects_count(3) # no change
       assert_openshift_objects_data(changed_source)
       assert_openshift_objects_data(sources_data[:openshift][@id2]) # no change
-      assert_openshift_objects_data(sources_data[:amazon][@id3], :endpoint_data => changed_endpoint)
+      assert_openshift_objects_data(sources_data[:amazon][@id3], :endpoint_data => changed_endpoint, :digest => changed_digest)
       assert_openshift_objects_data(sources_data[:amazon][@id4]) # no change
     end
 
