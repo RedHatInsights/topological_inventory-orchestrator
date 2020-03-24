@@ -34,7 +34,8 @@ module TopologicalInventory
 
         if openshift_object.present?
           openshift_object.stringData = data
-          object_manager.update_secret(openshift_object)
+          save_secret
+
 
           logger.info("[OK] Updated Secret #{self}")
         else
@@ -55,7 +56,7 @@ module TopologicalInventory
           credentials['updated_at'] = Time.now.utc.strftime("%Y-%m-%d %H:%M:%S")
 
           openshift_object.stringData = { "credentials" => credentials.to_json }
-          object_manager.update_secret(openshift_object)
+          save_secret
 
           logger.info("[OK] Updated Secret #{self}")
         else
@@ -78,7 +79,7 @@ module TopologicalInventory
           credentials['updated_at'] = Time.now.utc.strftime("%Y-%m-%d %H:%M:%S")
 
           openshift_object.stringData = { "credentials" => credentials.to_json }
-          object_manager.update_secret(openshift_object)
+          save_secret
 
           logger.info("[OK] Updated Secret #{self}")
         else
@@ -114,6 +115,11 @@ module TopologicalInventory
       end
 
       private
+
+      def save_secret
+        object_manager.update_secret(openshift_object)
+        openshift_object(:reload => true)
+      end
 
       def load_openshift_object
         object_manager.get_secrets(LABEL_COMMON).detect { |s| s.metadata.labels[LABEL_UNIQUE] == uid }

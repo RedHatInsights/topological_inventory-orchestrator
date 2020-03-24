@@ -78,6 +78,8 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
         allow(object_manager).to receive(:update_config_map)
 
         expect(object_manager).to receive(:update_config_map).twice
+        # reload after update
+        expect(config_map).to receive(:load_openshift_object).and_return(openshift_object).twice
 
         # Add both sources to config map
         [source, source2].each do |s|
@@ -164,6 +166,7 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
                                            :from_sources_api => true)
 
         allow(object_manager).to receive(:update_config_map)
+
         allow(object_manager).to receive(:delete_config_map)
 
         allow(secret).to receive(:delete_in_openshift)
@@ -172,6 +175,8 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
 
         # 2x add, 1x remove, last remove doesn't update, but delete
         expect(object_manager).to receive(:update_config_map).exactly(3).times
+        # reload after update
+        expect(config_map).to receive(:load_openshift_object).and_return(openshift_object).exactly(3).times
         expect(secret).to receive(:update!).exactly(3).times
 
         # Add both sources to config map
