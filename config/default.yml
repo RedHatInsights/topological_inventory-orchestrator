@@ -4,6 +4,9 @@ collectors:
     ansible-tower: 2
     azure: 10
     openshift: 2
+labels:
+  # This value is used for deleting of all old collectors, if changed
+  version: "v1"
 sync:
   poll_time_seconds: 10
   scheduled_event_hours: 1

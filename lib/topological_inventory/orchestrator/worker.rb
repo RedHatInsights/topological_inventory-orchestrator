@@ -39,6 +39,8 @@ module TopologicalInventory
       end
 
       def run
+        remove_deprecated_objects
+
         if ENV['NO_KAFKA'].to_i == 1
           loop do
             make_openshift_match_database
@@ -135,7 +137,7 @@ module TopologicalInventory
       def load_config_maps
         @config_maps_by_uid = {}
 
-        object_manager.get_config_maps("#{ConfigMap::LABEL_COMMON}=true").each do |openshift_object|
+        object_manager.get_config_maps("#{ConfigMap::LABEL_COMMON}=#{::Settings.labels.version}").each do |openshift_object|
           config_map = ConfigMap.new(object_manager, openshift_object)
           @config_maps_by_uid[config_map.uid] = config_map
 
@@ -153,7 +155,7 @@ module TopologicalInventory
       def load_deployment_configs
         @deployment_configs = []
 
-        object_manager.get_deployment_configs("#{DeploymentConfig::LABEL_COMMON}=true").each do |openshift_object|
+        object_manager.get_deployment_configs("#{DeploymentConfig::LABEL_COMMON}=#{::Settings.labels.version}").each do |openshift_object|
           deployment_config = DeploymentConfig.new(object_manager, openshift_object)
           @deployment_configs << deployment_config
 
@@ -175,7 +177,7 @@ module TopologicalInventory
       def load_secrets
         @secrets = []
 
-        object_manager.get_secrets("#{Secret::LABEL_COMMON}=true").each do |openshift_object|
+        object_manager.get_secrets("#{Secret::LABEL_COMMON}=#{::Settings.labels.version}").each do |openshift_object|
           secret = Secret.new(object_manager, openshift_object)
           @secrets << secret
 
@@ -252,16 +254,71 @@ module TopologicalInventory
         end
       end
 
+      # Remove deployment configs without config maps with the same UID
       def remove_old_deployments
         @deployment_configs.to_a.each do |dc|
           dc.delete_in_openshift if dc.config_map.nil?
         end
       end
 
+      # Remove secrets without config maps with the same UID
       def remove_old_secrets
         @secrets.to_a.each do |secret|
           secret.delete_in_openshift if secret.config_map.nil?
         end
+      end
+
+      # Deprecated version of openshift objects should be deleted before sync starts
+      # version is determined by config's "labels.version" value of common labels' values
+      def remove_deprecated_objects
+        logger.info("Deleting deprecated objects...")
+
+        remove_deprecated_deployment_configs
+        remove_deprecated_config_maps
+        remove_deprecated_secrets
+
+        logger.info("Deleting deprecated objects...[OK]")
+      rescue => err
+        logger.info("Deleting deprecated objects...[ERROR] #{err}\n#{err.backtrace.join("\n")}")
+      end
+
+      def remove_deprecated_config_maps
+        config_maps = object_manager.get_config_maps(ConfigMap::LABEL_COMMON).select do |obj|
+          obj.metadata.labels[ConfigMap::LABEL_COMMON] != ::Settings.labels.version
+        end
+        names = []
+        config_maps.each do |config_map|
+          name = config_map.metadata.name
+          names << name
+          object_manager.delete_config_map(name)
+        end
+        logger.info("Deleting deprecated ConfigMaps: [#{names.join(', ')}]")
+      end
+
+      def remove_deprecated_deployment_configs
+        dcs = object_manager.get_deployment_configs(DeploymentConfig::LABEL_COMMON).select do |obj|
+          obj.metadata.labels[DeploymentConfig::LABEL_COMMON] != ::Settings.labels.version
+        end
+        names = []
+        dcs.each do |dc|
+          name = dc.metadata.name
+          names << name
+          object_manager.delete_deployment_config(name)
+        end
+        logger.info("Deleting deprecated DeploymentConfigs: [#{names.join(', ')}]")
+      end
+
+      def remove_deprecated_secrets
+        secrets = object_manager.get_secrets(Secret::LABEL_COMMON).select do |obj|
+          obj.metadata.labels[Secret::LABEL_COMMON] != ::Settings.labels.version
+        end
+        names = []
+        secrets.each do |secret|
+          name = secret.metadata.name
+          names << name
+          object_manager.delete_secret(name)
+        end
+        logger.info("Deleting deprecated Secrets: [#{names.join(', ')}]")
       end
 
       def initialize_config
