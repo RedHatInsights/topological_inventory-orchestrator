@@ -5,8 +5,8 @@ collectors:
     azure: 10
     openshift: 2
 labels:
-  # "True" is current version (it's like "v1")
-  version: "true"
+  # This value is used for deleting of all old collectors, if changed
+  version: "v1"
 sync:
   poll_time_seconds: 10
   scheduled_event_hours: 1

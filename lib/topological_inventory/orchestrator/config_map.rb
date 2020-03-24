@@ -231,13 +231,24 @@ module TopologicalInventory
         return @uid if @uid.present?
 
         @uid = if @openshift_object.nil? # no openshift_object reloading here (cycle)
-                 SecureRandom.uuid
+                 generate_uniq_uid
                else
                  @openshift_object.data.uid
                end
       end
 
       private
+
+      # Generates UID in loop until it exists in OpenShift
+      def generate_uniq_uid
+        generated = nil
+        loop do
+          generated = SecureRandom.hex(4)
+          existing_object = load_openshift_object(generated)
+          break if existing_object.nil?
+        end
+        generated
+      end
 
       def yaml_from_sources
         cfg = {:sources => [], :updated_at => Time.now.utc.strftime("%Y-%m-%d %H:%M:%S")}
@@ -397,8 +408,8 @@ module TopologicalInventory
         DeploymentConfig.new(object_manager)
       end
 
-      def load_openshift_object
-        object_manager.get_config_maps(LABEL_COMMON).detect { |s| s.metadata.labels[LABEL_UNIQUE] == uid }
+      def load_openshift_object(object_uid = uid)
+        object_manager.get_config_maps(LABEL_COMMON).detect { |s| s.metadata.labels[LABEL_UNIQUE] == object_uid }
       end
     end
   end
