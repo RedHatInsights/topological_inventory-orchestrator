@@ -10,8 +10,8 @@ module TopologicalInventory
         self.openshift_object = openshift_object
       end
 
-      def openshift_object
-        return @openshift_object if @openshift_object.present?
+      def openshift_object(reload: false)
+        return @openshift_object if @openshift_object.present? && !reload
 
         @openshift_object = load_openshift_object
       end

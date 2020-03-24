@@ -345,6 +345,7 @@ module TopologicalInventory
         openshift_object.data['custom.yml'] = data_yaml
 
         object_manager.update_config_map(openshift_object)
+        openshift_object(:reload => true)
       end
 
       def digests
