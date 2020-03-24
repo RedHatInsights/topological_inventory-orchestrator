@@ -161,7 +161,7 @@ module TopologicalInventory
         logger.info("Creating ConfigMap #{self} by Source #{source}")
 
         object_manager.create_config_map(name) do |map|
-          map[:metadata][:labels][LABEL_COMMON] = "true"
+          map[:metadata][:labels][LABEL_COMMON] = ::Settings.labels.version.to_s
           map[:metadata][:labels][LABEL_SOURCE_TYPE] = source_type['name'] if source_type.present?
           map[:metadata][:labels][LABEL_UNIQUE] = uid
           map[:data][:uid] = uid

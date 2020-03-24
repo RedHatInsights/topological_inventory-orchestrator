@@ -4,6 +4,9 @@ collectors:
     ansible-tower: 2
     azure: 10
     openshift: 2
+labels:
+  # "True" is current version (it's like "v1")
+  version: "true"
 sync:
   poll_time_seconds: 10
   scheduled_event_hours: 1

@@ -20,7 +20,7 @@ module TopologicalInventory
 
         object_manager.create_secret(name, data) do |secret|
           secret[:metadata][:labels][LABEL_UNIQUE] = uid
-          secret[:metadata][:labels][LABEL_COMMON] = "true"
+          secret[:metadata][:labels][LABEL_COMMON] = ::Settings.labels.version.to_s
           secret[:metadata][:labels][ConfigMap::LABEL_SOURCE_TYPE] = config_map.source_type['name'] if config_map.source_type.present?
         end
 

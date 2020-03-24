@@ -134,15 +134,19 @@ module Functions
     @api.send(:make_params_string, filter_key, filter_value, limit)
   end
 
-  def init_config(openshift: 1, amazon: 1, azure: 1, mock: 1)
-    stub_settings_merge(:collectors => {
-      :sources_per_collector => {
-        :amazon    => amazon,
-        :azure     => azure,
-        :mock      => mock,
-        :openshift => openshift
-      }
-    })
+  def init_config(openshift: 1, amazon: 1, azure: 1, mock: 1, version: "v1")
+    stub_settings_merge(
+      :collectors => {
+        :sources_per_collector => {
+          :amazon    => amazon,
+          :azure     => azure,
+          :mock      => mock,
+          :openshift => openshift
+        }
+      },
+      :labels     => {
+        :version => version
+      })
   end
 
   ### Assert checks agains kube_client
