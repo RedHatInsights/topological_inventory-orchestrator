@@ -57,6 +57,12 @@ module TopologicalInventory
         def skip_targets_with_same_source_and_action
           @targets.each do |target|
             @targets.each do |target2|
+              # Skip incomplete targets
+              if target[:source].nil? || target2[:source].nil?
+                target[:action] = :skip
+                break
+              end
+
               next unless target[:source]['id'] == target2[:source]['id'] &&
                           target[:action] == target2[:action] &&
                           target[:target] != target2[:target]

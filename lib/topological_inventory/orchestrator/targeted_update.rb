@@ -100,8 +100,8 @@ module TopologicalInventory
 
           @config_maps_by_uid[config_map.uid] = config_map
 
-          config_map.assign_source_type!(@targets.collect { |t| t[:source_type] })
-          config_map.associate_sources_by_targets(@targets)
+          config_map.assign_source_type!(@targets.collect { |t| t[:source_type] unless t[:action] == :skip }.compact)
+          config_map.associate_sources_by_targets(@targets.select { |t| t[:action] != :skip})
         end
 
         logger.debug("ConfigMaps loaded: #{@config_maps_by_uid.values.count}")
@@ -127,6 +127,8 @@ module TopologicalInventory
       end
 
       def skip_target(target)
+        return if target[:source].nil?
+
         log_msg_for_target(target, "Source #{target[:source]['id']} skipped", :info)
       end
 

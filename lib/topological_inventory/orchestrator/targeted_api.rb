@@ -19,10 +19,12 @@ module TopologicalInventory
           topology_source_ids << topology_source['id']
         end
 
-        filter = make_params_string(filter_key, topology_source_ids)
+        if topology_source_ids.present?
+          filter = make_params_string(filter_key, topology_source_ids)
 
-        each_resource(sources_api_url_for("sources?#{filter}"), external_tenant) do |source|
-          yield source
+          each_resource(sources_api_url_for("sources?#{filter}"), external_tenant) do |source|
+            yield source
+          end
         end
       end
 
