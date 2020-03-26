@@ -2,6 +2,7 @@ require 'yaml'
 
 describe TopologicalInventory::Orchestrator::ConfigMap do
   include MockData
+  include Functions
 
   let(:object_manager) { double('object_manager') }
   let(:openshift_object) { double('openshift_object') }
@@ -30,6 +31,10 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
 
     allow(secret).to receive(:config_map=)
     allow(deployment_config).to receive(:config_map=)
+
+    config_file = File.expand_path("../config/default.yml", File.dirname(__FILE__))
+    ::Config.load_and_set_settings(config_file)
+    init_config
   end
 
   describe "#init_from_source" do
@@ -78,6 +83,8 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
         allow(object_manager).to receive(:update_config_map)
 
         expect(object_manager).to receive(:update_config_map).twice
+        # reload after update
+        expect(config_map).to receive(:load_openshift_object).and_return(openshift_object).twice
 
         # Add both sources to config map
         [source, source2].each do |s|
@@ -164,6 +171,7 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
                                            :from_sources_api => true)
 
         allow(object_manager).to receive(:update_config_map)
+
         allow(object_manager).to receive(:delete_config_map)
 
         allow(secret).to receive(:delete_in_openshift)
@@ -172,6 +180,8 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
 
         # 2x add, 1x remove, last remove doesn't update, but delete
         expect(object_manager).to receive(:update_config_map).exactly(3).times
+        # reload after update
+        expect(config_map).to receive(:load_openshift_object).and_return(openshift_object).exactly(3).times
         expect(secret).to receive(:update!).exactly(3).times
 
         # Add both sources to config map

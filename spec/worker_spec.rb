@@ -79,4 +79,40 @@ describe TopologicalInventory::Orchestrator::Worker do
       assert_openshift_objects_count(0)
     end
   end
+
+  describe "#remove_deprecated_objects" do
+    before do
+      init_config(:version => 'v2')
+      %w[v1 v2 v0].each do |version|
+        object_manager.create_config_map("config_map_#{version}") do |map|
+          map[:metadata][:labels][TopologicalInventory::Orchestrator::ConfigMap::LABEL_COMMON] = version
+        end
+        object_manager.create_secret("secret_#{version}", {}) do |secret|
+          secret[:metadata][:labels][TopologicalInventory::Orchestrator::Secret::LABEL_COMMON] = version
+        end
+        object_manager.create_deployment_config("dc_#{version}", 'my-namespace', 'image') do |dc|
+          dc[:metadata][:labels][TopologicalInventory::Orchestrator::DeploymentConfig::LABEL_COMMON] = version
+        end
+      end
+    end
+
+    it "removes objects v0 and v1, keeps v2" do
+      expect(kube_client.config_maps.size).to eq(3)
+      expect(kube_client.deployment_configs.size).to eq(3)
+      expect(kube_client.secrets.size).to eq(3)
+
+      subject.send(:remove_deprecated_objects)
+
+      expect(kube_client.config_maps.size).to eq(1)
+      expect(kube_client.deployment_configs.size).to eq(1)
+      expect(kube_client.secrets.size).to eq(1)
+
+      label = TopologicalInventory::Orchestrator::ConfigMap::LABEL_COMMON
+      expect(object_manager.get_config_maps(label).first.metadata.labels[label]).to eq('v2')
+      label = TopologicalInventory::Orchestrator::DeploymentConfig::LABEL_COMMON
+      expect(object_manager.get_deployment_configs(label).first.metadata.labels[label]).to eq('v2')
+      label = TopologicalInventory::Orchestrator::Secret::LABEL_COMMON
+      expect(object_manager.get_secrets(label).first.metadata.labels[label]).to eq('v2')
+    end
+  end
 end

@@ -134,15 +134,19 @@ module Functions
     @api.send(:make_params_string, filter_key, filter_value, limit)
   end
 
-  def init_config(openshift: 1, amazon: 1, azure: 1, mock: 1)
-    stub_settings_merge(:collectors => {
-      :sources_per_collector => {
-        :amazon    => amazon,
-        :azure     => azure,
-        :mock      => mock,
-        :openshift => openshift
-      }
-    })
+  def init_config(openshift: 1, amazon: 1, azure: 1, mock: 1, version: "v1")
+    stub_settings_merge(
+      :collectors => {
+        :sources_per_collector => {
+          :amazon    => amazon,
+          :azure     => azure,
+          :mock      => mock,
+          :openshift => openshift
+        }
+      },
+      :labels     => {
+        :version => version
+      })
   end
 
   ### Assert checks agains kube_client
@@ -152,13 +156,13 @@ module Functions
     expect(kube_client.secrets.size).to eq(cnt)
   end
 
-  def assert_openshift_objects_data(source_data, endpoint_data: nil, auth_data: nil, missing: false)
-    config_uid = assert_source_in_config_maps(source_data, :endpoint_data => endpoint_data, :missing => missing)
+  def assert_openshift_objects_data(source_data, endpoint_data: nil, auth_data: nil, digest: nil, missing: false)
+    config_uid = assert_source_in_config_maps(source_data, :endpoint_data => endpoint_data, :digest => digest, :missing => missing)
     assert_source_in_secrets(source_data, config_uid, :auth_data => auth_data, :missing => missing)
   end
 
   # @param endpoint_data [Hash] if not present, data are loaded from defaults (mock_data.rb#endpoints)
-  def assert_source_in_config_maps(source_data, endpoint_data: nil, missing: false)
+  def assert_source_in_config_maps(source_data, endpoint_data: nil, digest: nil, missing: false)
     found_digests, found_in_yaml = 0, 0
     config_uid = nil
 
@@ -172,7 +176,8 @@ module Functions
       expect(config_map.data.digests).to be_present
       digests = JSON.parse(config_map.data.digests)
 
-      if (found_digest = digests.include?(digests_data[source_data['id']]))
+      # Try to find either given digest (changed Source) or in predefined data
+      if (found_digest = digests.include?(digest || digests_data[source_data['id']]))
         found_digests += 1
 
         # When found, check that source is in config_map of the same source_type

@@ -94,7 +94,7 @@ module TopologicalInventory
       def load_config_maps
         @config_maps_by_uid = {}
 
-        object_manager.get_config_maps("#{ConfigMap::LABEL_COMMON}=true").each do |openshift_object|
+        object_manager.get_config_maps("#{ConfigMap::LABEL_COMMON}=#{::Settings.labels.version}").each do |openshift_object|
           config_map = ConfigMap.new(object_manager, openshift_object)
           config_map.targeted_update = true
 

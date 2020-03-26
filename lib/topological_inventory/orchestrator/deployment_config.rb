@@ -31,7 +31,7 @@ module TopologicalInventory
         logger.info("Creating DeploymentConfig #{self}")
         object_manager.create_deployment_config(name, ENV["IMAGE_NAMESPACE"], image) do |dc|
           dc[:metadata][:labels][LABEL_UNIQUE] = uid
-          dc[:metadata][:labels][LABEL_COMMON] = "true"
+          dc[:metadata][:labels][LABEL_COMMON] = ::Settings.labels.version.to_s
           dc[:metadata][:labels][ConfigMap::LABEL_SOURCE_TYPE] = config_map.source_type['name'] if config_map.source_type.present?
           dc[:spec][:replicas] = 1
 
