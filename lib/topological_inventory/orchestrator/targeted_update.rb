@@ -17,6 +17,7 @@ module TopologicalInventory
         @collector_image_tag = worker.collector_image_tag
         @api = TargetedApi.new(:sources_api  => worker.api.sources_api,
                                :topology_api => worker.api.topology_api)
+        @enabled_source_types = worker.enabled_source_types
 
         clear_targets
       end
@@ -57,6 +58,8 @@ module TopologicalInventory
 
         load_sources_from_targets
 
+        enable_supported_source_types
+
         load_applications
 
         scan_targets!
@@ -71,6 +74,14 @@ module TopologicalInventory
       end
 
       private
+
+      def enable_supported_source_types
+        @targets.each do |target|
+          source_type = target[:source_type]
+
+          source_type[:enabled?] = @enabled_source_types.include?(source_type['name']) if source_type
+        end
+      end
 
       # Skips inconsistent data (if source not found) and noop destroy events
       # Assigns source type etc. to source
