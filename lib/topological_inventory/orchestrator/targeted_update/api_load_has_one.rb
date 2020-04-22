@@ -18,6 +18,7 @@ module TopologicalInventory
 
           targets.each do |target|
             next if target[dest_model].present? # Was loaded previously
+            next if target[src_model].nil? # Could be destroy event when Source was deleted before
 
             target_data = target[src_model]
             dest_id     = target_data['id'].to_i
