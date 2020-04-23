@@ -320,6 +320,44 @@ describe TopologicalInventory::Orchestrator::TargetedUpdate do
 
       assert_openshift_objects_count(3)
     end
+
+    it "Skips Endpoint.destroy when Source was deleted (not synced to Topological db)" do
+      id = '7'
+      subject.add_target('Endpoint', 'destroy', applications_data[id])
+
+      # Deleted in Sources API, not synced to Topological API yet
+      stub_api_common_get('sources', request_filter(:id, [id]), list([sources_by_ids[id]]), user_tenant_header, topology_api)
+      stub_api_common_get('sources', request_filter(:id, [id]), list([]), user_tenant_header, sources_api)
+
+      subject.sync_targets_with_openshift
+
+      assert_openshift_objects_count(3)
+    end
+
+    it "Skips Endpoint.destroy when Sources was deleted (synced to Topological db)" do
+      id = '7'
+      subject.add_target('Endpoint', 'destroy', applications_data[id])
+
+      # Deleted in both Sources API, and Topological API
+      stub_api_common_get('sources', request_filter(:id, [id]), list([]), user_tenant_header, topology_api)
+
+      subject.sync_targets_with_openshift
+
+      assert_openshift_objects_count(3)
+    end
+
+    it "Skips Authentication.destroy when Sources was deleted" do
+      id = '7'
+      subject.add_target('Authentication', 'destroy', authentications[id])
+
+      # Deleted in Sources API
+      stub_api_endpoints_get(:request_params => request_filter(:id, [id]),
+                             :response       => list([]))
+
+      subject.sync_targets_with_openshift
+
+      assert_openshift_objects_count(3)
+    end
   end
 
   context "#multitenant targets" do
