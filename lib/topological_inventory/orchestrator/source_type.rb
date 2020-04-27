@@ -3,7 +3,16 @@ require "topological_inventory/orchestrator/api_object"
 module TopologicalInventory
   module Orchestrator
     class SourceType < ApiObject
+      SUPPORTED_TYPES = %w[amazon ansible-tower azure openshift].freeze
       AVAILABILITY_CHECK_SOURCE_TYPES = %w[amazon ansible-tower openshift].freeze
+
+      def method_missing(name, *args, &block)
+        if name.to_s.ends_with?("?")
+          SUPPORTED_TYPES.include?(attributes['name'].to_s)
+        else
+          super
+        end
+      end
 
       def to_s
         attributes['name'] || "Unknown source type: #{attributes.inspect}"
@@ -27,13 +36,6 @@ module TopologicalInventory
 
       def supported_source_type?
         attributes['name'].present? && self[:enabled?]
-      end
-
-      # Methods amazon? / ansible_tower? / azure? / openshift?
-      %w[amazon ansible-tower azure openshift].each do |type|
-        define_method "#{type.sub('-', '_')}?" do
-          attributes['name'].to_s == type
-        end
       end
 
       def supports_availability_check?
