@@ -6,6 +6,14 @@ module TopologicalInventory
       SUPPORTED_TYPES = %w[amazon ansible-tower azure openshift].freeze
       AVAILABILITY_CHECK_SOURCE_TYPES = %w[amazon ansible-tower openshift].freeze
 
+      def method_missing(name, *args, &block)
+        if name.to_s.ends_with?("?")
+          SUPPORTED_TYPES.include?(attributes['name'].to_s)
+        else
+          super
+        end
+      end
+
       def to_s
         attributes['name'] || "Unknown source type: #{attributes.inspect}"
       end
@@ -27,14 +35,7 @@ module TopologicalInventory
       end
 
       def supported_source_type?
-        attributes['name'].present? && SUPPORTED_TYPES.include?(attributes['name'])
-      end
-
-      # Methods amazon? / ansible_tower? / azure? / openshift?
-      SUPPORTED_TYPES.each do |type|
-        define_method "#{type.sub('-', '_')}?" do
-          attributes['name'].to_s == type
-        end
+        attributes['name'].present? && self[:enabled?]
       end
 
       def supports_availability_check?

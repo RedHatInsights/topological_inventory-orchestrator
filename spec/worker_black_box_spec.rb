@@ -212,7 +212,6 @@ describe TopologicalInventory::Orchestrator::Worker do
 
     context "with nonempty API data" do
       before do
-        stub_const("TopologicalInventory::Orchestrator::SourceType::SUPPORTED_TYPES", %w[openshift amazon azure])
         # Fill openshift first
         #
         # 1st sync
