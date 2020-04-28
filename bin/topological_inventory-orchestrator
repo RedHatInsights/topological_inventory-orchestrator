@@ -16,7 +16,7 @@ def parse_args
         :default => ENV["TOPOLOGICAL_INVENTORY_API"], :required => ENV["TOPOLOGICAL_INVENTORY_API"].nil?
     opt :config, "Configuration YAML file name", :type => :string, :default => ENV["CONFIG"] || 'default'
     opt :source_types, "The Source types to spin up collectors/operations pods for", :type => :string,
-        :default => ENV['ENABLED_SOURCE_TYPES']&.split(",")
+        :default => ENV['ENABLED_SOURCE_TYPES']
   end
 
   opts
@@ -34,5 +34,5 @@ Signal.trap("TERM") do
   exit
 end
 
-w = TopologicalInventory::Orchestrator::Worker.new(:collector_image_tag => args[:collector_image_tag], :sources_api => args[:sources_api], :topology_api => args[:topology_api], :config_name => args[:config], :source_types => args[:source_types])
+w = TopologicalInventory::Orchestrator::Worker.new(:collector_image_tag => args[:collector_image_tag], :sources_api => args[:sources_api], :topology_api => args[:topology_api], :config_name => args[:config], :source_types => args[:source_types]&.split(","))
 w.run
