@@ -27,10 +27,11 @@ module TopologicalInventory
 
       ORCHESTRATOR_TENANT = "system_orchestrator".freeze
 
-      attr_reader :collector_image_tag, :api
+      attr_reader :collector_image_tag, :api, :enabled_source_types
 
-      def initialize(collector_image_tag:, sources_api:, topology_api:, config_name: 'default')
+      def initialize(collector_image_tag:, sources_api:, topology_api:, config_name: 'default', source_types: %w[amazon ansible-tower azure openshift])
         @collector_image_tag = collector_image_tag
+        @enabled_source_types = source_types
 
         self.config_name = config_name
         initialize_config
@@ -90,6 +91,8 @@ module TopologicalInventory
         @source_types_by_id = {}
 
         @api.each_source_type do |attributes|
+          attributes[:enabled?] = @enabled_source_types.include?(attributes['name'])
+
           if (source_type = SourceType.new(attributes)).supported_source_type?
             logger.debug("Loaded Source type: #{attributes['name']} | #{source_type.sources_per_collector} sources per config map")
           end
