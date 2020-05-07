@@ -1,24 +1,36 @@
+require "concurrent"
+require 'rest-client'
+require "topological_inventory/orchestrator/fixed_length_array"
+require "topological_inventory/orchestrator/object_manager"
+
 module TopologicalInventory
   module Orchestrator
     class MetricScaler
       class Watcher
-        attr_reader :deployment_config, :deployment_config_name, :logger, :thread
+        attr_reader :deployment_config, :deployment_config_name, :logger, :finished, :thread
 
         def initialize(deployment_config_name, logger)
           @deployment_config_name = deployment_config_name
+          @finished = Concurrent::AtomicBoolean.new(false)
           @logger = logger
+          @scaling_allowed = Concurrent::AtomicBoolean.new(true)
+
           logger.info("Metrics scaling enabled for #{deployment_config_name}")
           configure
         end
 
         def configured?
-          @current_metric_name && @max_metric_name && @max_replicas && @min_replicas && @target_usage_pct && @scale_threshold_pct
+          @current_metric_name && @max_metric_name && @max_replicas && @min_replicas && @target_usage && @scale_threshold
+        end
+
+        def scaling_allowed?
+          @scaling_allowed.value
         end
 
         def start
           @thread = Thread.new do
             logger.info("Watcher thread for #{deployment_config_name} starting")
-            loop do
+            until finished?
               configure
               break unless configured?
 
@@ -31,8 +43,13 @@ module TopologicalInventory
           end
         end
 
+        def finished?
+          finished.value
+        end
+
         def stop
-          @thread.exit
+          logger.info("Watcher thread for #{deployment_config_name} stopping")
+          @finished.value = true
           @thread.join
         end
 
@@ -54,10 +71,11 @@ module TopologicalInventory
         private
 
         def metrics
-          @metrics ||= begin
-            require "topological_inventory/orchestrator/fixed_length_array"
-            TopologicalInventory::Orchestrator::FixedLengthArray.new(60)
-          end
+          @metrics ||= TopologicalInventory::Orchestrator::FixedLengthArray.new(max_metrics_count)
+        end
+
+        def max_metrics_count
+          60
         end
 
         def configure
@@ -67,15 +85,15 @@ module TopologicalInventory
           @max_metric_name     = deployment_config.metadata.annotations["metric_scaler_max_metric_name"]           # i.e. "topological_inventory_api_puma_max_threads"
           @max_replicas        = deployment_config.metadata.annotations["metric_scaler_max_replicas"]&.to_i        # i.e. "5"
           @min_replicas        = deployment_config.metadata.annotations["metric_scaler_min_replicas"]&.to_i        # i.e. "1"
-          @target_usage_pct    = deployment_config.metadata.annotations["metric_scaler_target_usage_pct"]&.to_i    # i.e. "50"
-          @scale_threshold_pct = deployment_config.metadata.annotations["metric_scaler_scale_threshold_pct"]&.to_i # i.e. "20"
+          @target_usage        = deployment_config.metadata.annotations["metric_scaler_target_usage_pct"]&.to_i    # i.e. "50"
+          @scale_threshold     = deployment_config.metadata.annotations["metric_scaler_scale_threshold_pct"]&.to_i # i.e. "20"
         end
 
         def desired_replicas
-          deviation = metrics.average.to_f - @target_usage_pct
+          deviation = metrics.average.to_f - @target_usage
           count     = deployment_config.spec.replicas
 
-          return count if deviation.abs < @scale_threshold_pct # Within tolerance
+          return count if deviation.abs < @scale_threshold # Within tolerance
 
           deviation.positive? ? count += 1 : count -= 1
           count.clamp(@min_replicas, @max_replicas)
@@ -87,10 +105,7 @@ module TopologicalInventory
         end
 
         def object_manager
-          @object_manager ||= begin
-            require "topological_inventory/orchestrator/object_manager"
-            ObjectManager.new
-          end
+          @object_manager ||= ObjectManager.new
         end
 
         ### Metrics scraping
@@ -121,7 +136,6 @@ module TopologicalInventory
         end
 
         def scrape_metrics_from_ip(ip)
-          require 'restclient'
           response = RestClient.get("http://#{ip}:9394/metrics")
           metrics_text_to_h(response)
         end
