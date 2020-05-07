@@ -6,7 +6,9 @@ $:.push File.expand_path("../../lib", __FILE__)
 
 require 'optimist'
 args = Optimist.options do
-  opt :metrics_port, "Port to expose the metrics endpoint on, 0 to disable metrics", :type => :integer, :default => 9394
+  opt :metrics_port, "Port to expose the metrics endpoint on, 0 to disable metrics", :type => :integer, :default => (ENV['METRICS_PORT'] || 9394).to_i
+  opt :thanos_host, "Host of the Thanos metrics server", :type => :string, :default => ENV['THANOS_HOST']
+  opt :thanos_port, "Port of the Thanos metrics server", :type => :integer, :default => ENV['THANOS_PORT'].to_i
 end
 
 require "topological_inventory/orchestrator/application_metrics"
@@ -19,5 +21,5 @@ Signal.trap("TERM") do
   exit
 end
 
-w = TopologicalInventory::Orchestrator::MetricScaler.new
+w = TopologicalInventory::Orchestrator::MetricScaler.new("#{args[:thanos_host]}:#{args[:thanos_port]}")
 w.run

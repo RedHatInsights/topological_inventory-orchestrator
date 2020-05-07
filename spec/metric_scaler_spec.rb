@@ -3,7 +3,7 @@ require File.join(__dir__, "../lib/topological_inventory/orchestrator/metric_sca
 require File.join(__dir__, "../lib/topological_inventory/orchestrator/object_manager")
 
 describe TopologicalInventory::Orchestrator::MetricScaler do
-  let(:instance) { described_class.new(logger) }
+  let(:instance) { described_class.new(nil, logger) }
   let(:logger)   { Logger.new(StringIO.new).tap { |logger| allow(logger).to receive(:info) } }
 
   it "skips deployment configs that aren't fully configured" do
