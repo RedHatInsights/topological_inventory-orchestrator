@@ -1,5 +1,4 @@
 require "topological_inventory/orchestrator/metric_scaler/watcher"
-require "pry-byebug"
 
 module TopologicalInventory
   module Orchestrator
@@ -9,8 +8,9 @@ module TopologicalInventory
         METRICS_CHECK_INTERVAL = 150
         METRICS_RANGE          = 300
 
-        def initialize(deployment_config_name, thanos_hostname, logger)
+        def initialize(deployment_config_name, thanos_hostname, promql_namespace, logger)
           super(deployment_config_name, logger)
+          @promql_namespace = promql_namespace
           @thanos_hostname = thanos_hostname
           @scaling_allowed.value = false
         end
@@ -31,11 +31,18 @@ module TopologicalInventory
           @thread = Thread.new do
             logger.info("Watcher thread for #{deployment_config_name} starting")
             until finished?
-              download_metrics.each do |time_value_pair|
-                metrics << time_value_pair[1]
-              end
+              new_metrics = download_metrics
+              if new_metrics.present?
+                new_metrics.each do |time_value_pair|
+                  metrics << time_value_pair[1].to_i
+                end
 
-              @scaling_allowed.value = true
+                # zero metrics usually means
+                # there are no data in the Thanos
+                if metrics.average > 0
+                  @scaling_allowed.value = true
+                end
+              end
 
               sleep METRICS_CHECK_INTERVAL
             end
@@ -67,7 +74,7 @@ module TopologicalInventory
         end
 
         def scale_to_desired_replicas
-          super
+          super if scaling_allowed?
           @scaling_allowed.value = false
         end
 
@@ -96,7 +103,8 @@ module TopologicalInventory
         end
 
         def promql_query
-          query = "query_range?query=sum(kafka_consumergroup_group_lag{topic=~'platform.topological-inventory.persister'}) by (group, topic)"
+          metric = "kafka_consumergroup_group_lag{topic=~'platform.topological-inventory.persister', kubernetes_namespace='#{@promql_namespace}'}"
+          query = "query_range?query=sum(#{metric}) by (group, topic)"
           query += "&start=#{(Time.now.utc - METRICS_RANGE).strftime("%Y-%m-%dT%H:%M:%S.%LZ")}" # RFC 3339
           query += "&end=#{(Time.now.utc).strftime("%Y-%m-%dT%H:%M:%S.%LZ")}" # RFC 3339
           query += "&step=#{METRICS_STEP.to_f}"
