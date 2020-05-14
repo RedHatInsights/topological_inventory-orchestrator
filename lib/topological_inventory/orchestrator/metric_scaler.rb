@@ -8,9 +8,10 @@ module TopologicalInventory
     class MetricScaler
       attr_reader :logger
 
-      def initialize(thanos_hostname, logger = nil)
+      def initialize(thanos_hostname, persister_promql_namespace, logger = nil)
         @logger = logger || ManageIQ::Loggers::CloudWatch.new
         @thanos_hostname = thanos_hostname
+        @persister_promql_namespace = persister_promql_namespace
         @cache  = {}
       end
 
@@ -38,8 +39,8 @@ module TopologicalInventory
       private
 
       def watcher_by_name(dc_name)
-        if dc_name.include?('persister')
-          PersisterWatcher.new(dc_name, @thanos_hostname, logger)
+        if dc_name.include?('topological-inventory-persister')
+          PersisterWatcher.new(dc_name, @thanos_hostname, @persister_promql_namespace, logger)
         else
           Watcher.new(dc_name, logger)
         end
