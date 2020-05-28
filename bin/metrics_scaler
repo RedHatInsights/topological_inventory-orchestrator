@@ -7,9 +7,8 @@ $:.push File.expand_path("../../lib", __FILE__)
 require 'optimist'
 args = Optimist.options do
   opt :metrics_port, "Port to expose the metrics endpoint on, 0 to disable metrics", :type => :integer, :default => (ENV['METRICS_PORT'] || 9394).to_i
-  opt :thanos_host, "Host of the Thanos metrics server", :type => :string, :default => ENV['THANOS_HOST']
-  opt :thanos_port, "Port of the Thanos metrics server", :type => :integer, :default => ENV['THANOS_PORT'].to_i
-  opt :persister_promql_namespace, "Kubernetes namespace for persister's PromQL", :type => :integer, :default => ENV['PERSISTER_PROMQL_NAMESPACE']
+  opt :prometheus_host, "Host of the prometheus metrics server", :type => :string, :default => ENV['PROMETHEUS_HOST']
+  opt :prometheus_port, "Port of the prometheus metrics server", :type => :integer, :default => ENV['PROMETHEUS_PORT']&.to_i
 end
 
 require "topological_inventory/orchestrator/application_metrics"
@@ -22,5 +21,5 @@ Signal.trap("TERM") do
   exit
 end
 
-w = TopologicalInventory::Orchestrator::MetricScaler.new("#{args[:thanos_host]}:#{args[:thanos_port]}", args[:persister_promql_namespace])
+w = TopologicalInventory::Orchestrator::MetricScaler.new("#{args[:prometheus_host]}:#{args[:prometheus_port]}")
 w.run

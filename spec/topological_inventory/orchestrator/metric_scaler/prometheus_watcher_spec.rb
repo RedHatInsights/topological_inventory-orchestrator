@@ -1,15 +1,24 @@
-require "topological_inventory/orchestrator/metric_scaler/persister_watcher"
+require "topological_inventory/orchestrator/metric_scaler/prometheus_watcher"
 require "topological_inventory/orchestrator/test_models/object_manager"
 
-describe TopologicalInventory::Orchestrator::MetricScaler::PersisterWatcher do
+describe TopologicalInventory::Orchestrator::MetricScaler::PrometheusWatcher do
   let(:logger) { Logger.new(StringIO.new).tap { |logger| allow(logger).to receive(:info) } }
 
+  let(:annotations) do
+    {
+      "metric_scaler_max_replicas"        => "10",
+      "metric_scaler_min_replicas"        => "1",
+      "metric_scaler_target_usage"        => "1",
+      "metric_scaler_scale_threshold"     => ".5",
+    }
+  end
+
   let(:deployment_config_name) { 'topological-inventory-persister' }
-  let(:deployment)     { double("deployment", :metadata => double("metadata", :name => deployment_config_name), :spec => double("spec", :replicas => replicas)) }
+  let(:deployment)     { double("deployment", :metadata => double("metadata", :name => deployment_config_name, :annotations => annotations), :spec => double("spec", :replicas => replicas)) }
   let(:metrics)        { watcher.send(:metrics) }
   let(:object_manager) { double("TopologicalInventory::Orchestrator::ObjectManager", :get_deployment_configs => [deployment], :get_deployment_config => deployment) }
   let(:replicas)       { 3 }
-  let(:watcher)        { described_class.new(deployment.metadata.name, 'thanos.example.com', 'platform-mq-ci', logger) }
+  let(:watcher)        { described_class.new(deployment, deployment.metadata.name, 'prometheus.mnm-ci', logger) }
 
   before { allow(TopologicalInventory::Orchestrator::ObjectManager).to receive(:new).and_return(object_manager) }
 

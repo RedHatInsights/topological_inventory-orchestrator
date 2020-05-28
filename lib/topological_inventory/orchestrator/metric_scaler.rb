@@ -1,17 +1,16 @@
 require "manageiq-loggers"
 require "topological_inventory/orchestrator/object_manager"
 require "topological_inventory/orchestrator/metric_scaler/watcher"
-require "topological_inventory/orchestrator/metric_scaler/persister_watcher"
+require "topological_inventory/orchestrator/metric_scaler/prometheus_watcher"
 
 module TopologicalInventory
   module Orchestrator
     class MetricScaler
       attr_reader :logger
 
-      def initialize(thanos_hostname, persister_promql_namespace, logger = nil)
+      def initialize(prometheus_hostname, logger = nil)
         @logger = logger || ManageIQ::Loggers::CloudWatch.new
-        @thanos_hostname = thanos_hostname
-        @persister_promql_namespace = persister_promql_namespace
+        @prometheus_hostname = prometheus_hostname
         @cache  = {}
       end
 
@@ -39,10 +38,12 @@ module TopologicalInventory
       private
 
       def watcher_by_name(dc_name)
-        if dc_name.include?('topological-inventory-persister')
-          PersisterWatcher.new(dc_name, @thanos_hostname, @persister_promql_namespace, logger)
+        dc = object_manager.get_deployment_config(dc_name)
+
+        if dc.metadata.annotations["metric_scaler_prometheus_query"]
+          PrometheusWatcher.new(dc, dc_name, @prometheus_hostname, logger)
         else
-          Watcher.new(dc_name, logger)
+          Watcher.new(dc, dc_name, logger)
         end
       end
 

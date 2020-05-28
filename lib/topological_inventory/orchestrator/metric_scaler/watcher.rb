@@ -1,15 +1,15 @@
 require "concurrent"
-require 'rest-client'
-require "topological_inventory/orchestrator/fixed_length_array"
-require "topological_inventory/orchestrator/object_manager"
 
 module TopologicalInventory
   module Orchestrator
     class MetricScaler
       class Watcher
+        MAX_METRICS_COUNT = 60.freeze
+
         attr_reader :deployment_config, :deployment_config_name, :logger, :finished, :thread
 
-        def initialize(deployment_config_name, logger)
+        def initialize(deployment_config, deployment_config_name, logger)
+          @deployment_config   = deployment_config
           @deployment_config_name = deployment_config_name
           @finished = Concurrent::AtomicBoolean.new(false)
           @logger = logger
@@ -71,16 +71,12 @@ module TopologicalInventory
         private
 
         def metrics
-          @metrics ||= TopologicalInventory::Orchestrator::FixedLengthArray.new(max_metrics_count)
-        end
-
-        def max_metrics_count
-          60
+          require "topological_inventory/orchestrator/fixed_length_array"
+          @metrics ||= TopologicalInventory::Orchestrator::FixedLengthArray.new(MAX_METRICS_COUNT)
         end
 
         def configure
           logger.info("Fetching configuration for #{deployment_config_name}")
-          @deployment_config   = object_manager.get_deployment_config(deployment_config_name)
           @current_metric_name = deployment_config.metadata.annotations["metric_scaler_current_metric_name"]       # i.e. "topological_inventory_api_puma_busy_threads"
           @max_metric_name     = deployment_config.metadata.annotations["metric_scaler_max_metric_name"]           # i.e. "topological_inventory_api_puma_max_threads"
           @max_replicas        = deployment_config.metadata.annotations["metric_scaler_max_replicas"]&.to_i        # i.e. "5"
@@ -105,6 +101,7 @@ module TopologicalInventory
         end
 
         def object_manager
+          require "topological_inventory/orchestrator/object_manager"
           @object_manager ||= ObjectManager.new
         end
 
@@ -136,6 +133,7 @@ module TopologicalInventory
         end
 
         def scrape_metrics_from_ip(ip)
+          require "rest-client"
           response = RestClient.get("http://#{ip}:9394/metrics")
           metrics_text_to_h(response)
         end

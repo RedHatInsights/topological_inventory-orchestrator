@@ -20,7 +20,7 @@ describe TopologicalInventory::Orchestrator::MetricScaler::Watcher do
     let(:metrics)        { watcher.send(:metrics) }
     let(:object_manager) { double("TopologicalInventory::Orchestrator::ObjectManager", :get_deployment_configs => [deployment], :get_deployment_config => deployment) }
     let(:replicas)       { 2 }
-    let(:watcher)        { described_class.new(deployment.metadata.name, logger) }
+    let(:watcher)        { described_class.new(deployment, deployment.metadata.name, logger) }
 
     before { allow(TopologicalInventory::Orchestrator::ObjectManager).to receive(:new).and_return(object_manager) }
 
