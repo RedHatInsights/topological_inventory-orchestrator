@@ -263,14 +263,16 @@ module TopologicalInventory
 
       def source_to_yaml(source)
         {
-          :source      => source['uid'],
-          :source_id   => source['id'],
-          :source_name => source['name'],
-          :scheme      => source.endpoint['scheme'],
-          :host        => source.endpoint['host'],
-          :port        => source.endpoint['port'],
-          :path        => source.endpoint['path'],
-          :digest      => source.digest
+          :source         => source['uid'],
+          :source_id      => source['id'],
+          :source_name    => source['name'],
+          :scheme         => source.endpoint['scheme'],
+          :host           => source.endpoint['host'],
+          :port           => source.endpoint['port'],
+          :path           => source.endpoint['path'],
+          :receptor_node  => source.endpoint['receptor_node'],
+          :account_number => source.tenant,
+          :digest         => source.digest
         }
       end
 
