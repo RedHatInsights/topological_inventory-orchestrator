@@ -8,7 +8,8 @@ module TopologicalInventory
     class MetricScaler
       attr_reader :logger
 
-      def initialize(prometheus_hostname, logger = nil)
+      def initialize(metrics, prometheus_hostname, logger = nil)
+        @metrics = metrics
         @logger = logger || ManageIQ::Loggers::CloudWatch.new
         @prometheus_hostname = prometheus_hostname
         @cache  = {}
@@ -41,7 +42,7 @@ module TopologicalInventory
         dc = object_manager.get_deployment_config(dc_name)
 
         if dc.metadata.annotations["metric_scaler_prometheus_query"]
-          PrometheusWatcher.new(dc, dc_name, @prometheus_hostname, logger)
+          PrometheusWatcher.new(@metrics, dc, dc_name, @prometheus_hostname, logger)
         else
           Watcher.new(dc, dc_name, logger)
         end

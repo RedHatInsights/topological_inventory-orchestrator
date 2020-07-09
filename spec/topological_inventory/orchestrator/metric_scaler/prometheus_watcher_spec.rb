@@ -16,9 +16,10 @@ describe TopologicalInventory::Orchestrator::MetricScaler::PrometheusWatcher do
   let(:deployment_config_name) { 'topological-inventory-persister' }
   let(:deployment)     { double("deployment", :metadata => double("metadata", :name => deployment_config_name, :annotations => annotations), :spec => double("spec", :replicas => replicas)) }
   let(:metrics)        { watcher.send(:metrics) }
+  let(:prometheus)     { double }
   let(:object_manager) { double("TopologicalInventory::Orchestrator::ObjectManager", :get_deployment_configs => [deployment], :get_deployment_config => deployment) }
   let(:replicas)       { 3 }
-  let(:watcher)        { described_class.new(deployment, deployment.metadata.name, 'prometheus.mnm-ci', logger) }
+  let(:watcher)        { described_class.new(prometheus, deployment, deployment.metadata.name, 'prometheus.mnm-ci', logger) }
 
   before { allow(TopologicalInventory::Orchestrator::ObjectManager).to receive(:new).and_return(object_manager) }
 
@@ -118,6 +119,30 @@ describe TopologicalInventory::Orchestrator::MetricScaler::PrometheusWatcher do
     it "doesn't scale when kafka consumer lag is in limits" do
       10.times { metrics << 11 }
       expect(watcher.send(:desired_replicas)).to eq(replicas)
+    end
+  end
+
+  context "when prometheus is down" do
+    before do
+      stub_const("#{described_class}::METRICS_CHECK_INTERVAL", 0)
+      allow(watcher).to receive(:finished?) do
+        finished = watcher.instance_variable_get(:@finished)
+        old_value = finished.value
+        finished.value = true
+        old_value
+      end
+
+      allow(watcher).to receive(:promql_query).and_return("")
+      allow(RestClient).to receive(:get).and_raise(RestClient::ExceptionWithResponse)
+    end
+
+    it "logs a metric" do
+      expect(prometheus).to receive(:record_metric_scaler_error).once
+
+      watcher.start
+      watcher.thread.join
+
+      expect(watcher.scaling_allowed?).to be_falsey
     end
   end
 end
