@@ -94,11 +94,17 @@ module TopologicalInventory
 
       def container_env_values
         [
-          { :name => "INGRESS_API", :value => "http://#{ENV["TOPOLOGICAL_INVENTORY_INGRESS_API_SERVICE_HOST"]}:#{ENV["TOPOLOGICAL_INVENTORY_INGRESS_API_SERVICE_PORT"]}" },
-          { :name => "CONFIG", :value => 'custom'},
-          { :name => "CLOUD_WATCH_LOG_GROUP", :value => ENV["CLOUD_WATCH_LOG_GROUP"] },
-          { :name => "CW_AWS_ACCESS_KEY_ID", :valueFrom => { :secretKeyRef => { :name => 'cloudwatch', :key => 'CW_AWS_ACCESS_KEY_ID' }}},
-          { :name => "CW_AWS_SECRET_ACCESS_KEY", :valueFrom => { :secretKeyRef => { :name => 'cloudwatch', :key => 'CW_AWS_SECRET_ACCESS_KEY' }}},
+          {:name => "INGRESS_API", :value => "http://#{ENV["TOPOLOGICAL_INVENTORY_INGRESS_API_SERVICE_HOST"]}:#{ENV["TOPOLOGICAL_INVENTORY_INGRESS_API_SERVICE_PORT"]}"},
+          {:name => "CONFIG", :value => 'custom'},
+          {:name => "CLOUD_WATCH_LOG_GROUP", :value => ENV["CLOUD_WATCH_LOG_GROUP"]},
+          {:name => "CW_AWS_ACCESS_KEY_ID", :valueFrom => {:secretKeyRef => {:name => 'cloudwatch', :key => 'CW_AWS_ACCESS_KEY_ID'}}},
+          {:name => "CW_AWS_SECRET_ACCESS_KEY", :valueFrom => {:secretKeyRef => {:name => 'cloudwatch', :key => 'CW_AWS_SECRET_ACCESS_KEY'}}},
+          {:name => "QUEUE_HOST", :value => ENV["QUEUE_HOST"]},
+          {:name => "QUEUE_PORT", :value => ENV["QUEUE_PORT"]},
+          {:name => "RECEPTOR_CONTROLLER_HOST", :value => ENV["RECEPTOR_CONTROLLER_HOST"]},
+          {:name => "RECEPTOR_CONTROLLER_SCHEME", :value => ENV["RECEPTOR_CONTROLLER_SCHEME"]},
+          {:name => "RECEPTOR_CONTROLLER_PORT", :value => ENV["RECEPTOR_CONTROLLER_PORT"]},
+          {:name => "RECEPTOR_CONTROLLER_PSK", :valueFrom => {:secretKeyRef => {:name => 'receptor', :key => 'RECEPTOR_CONTROLLER_PSK'}}},
         ]
       end
 

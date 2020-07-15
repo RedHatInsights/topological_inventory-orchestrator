@@ -6,8 +6,8 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
 
   let(:object_manager) { double('object_manager') }
   let(:openshift_object) { double('openshift_object') }
-  let(:source) { TopologicalInventory::Orchestrator::Source.new({'id' => '1', 'uid' => 'source-1', 'name' => 'Source 1'}, nil, nil, nil, from_sources_api: true) }
-  let(:source2) { TopologicalInventory::Orchestrator::Source.new({'id' => '2', 'uid' => 'source-2', 'name' => 'Source 2'}, nil, nil, nil, from_sources_api: true) }
+  let(:source) { TopologicalInventory::Orchestrator::Source.new({'id' => '1', 'uid' => 'source-1', 'name' => 'Source 1'}, "tid", nil, nil, :from_sources_api => true) }
+  let(:source2) { TopologicalInventory::Orchestrator::Source.new({'id' => '2', 'uid' => 'source-2', 'name' => 'Source 2'}, "tid", nil, nil, :from_sources_api => true) }
   let(:source_type) { TopologicalInventory::Orchestrator::SourceType.new(source_types_data[:openshift]) }
   let(:secret) { double('secret') }
   let(:deployment_config) { double('deployment_config') }
@@ -60,8 +60,8 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
 
   context "add or remove" do
     let(:config_map_data) { OpenStruct.new }
-    let(:endpoint1) { {'scheme' => 'https', 'host' => 'one.example.com', 'port' => 443, 'path' => nil} }
-    let(:endpoint2) { {'scheme' => 'https', 'host' => 'two.example.com', 'port' => 443, 'path' => '/api'} }
+    let(:endpoint1) { {'scheme' => 'https', 'host' => 'one.example.com', 'port' => 443, 'path' => nil, 'receptor_node' => "a-node-somewhere"} }
+    let(:endpoint2) { {'scheme' => 'https', 'host' => 'two.example.com', 'port' => 443, 'path' => '/api', 'receptor_node' => nil} }
     before do
       allow(openshift_object).to receive(:data).and_return(config_map_data)
     end
@@ -98,8 +98,8 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
         # Compare it with endpoints and source uids
         loaded_data = YAML.load(config_map_data['custom.yml'])
         expected_data = [
-          endpoint1.transform_keys!(&:to_sym).merge(:source => source['uid'], :source_id => source['id'], :source_name => source['name'], :digest => digest),
-          endpoint2.transform_keys!(&:to_sym).merge(:source => source2['uid'], :source_id => source2['id'], :source_name => source2['name'], :digest => digest2)
+          endpoint1.transform_keys!(&:to_sym).merge(:source => source['uid'], :source_id => source['id'], :source_name => source['name'], :digest => digest, :account_number => "tid"),
+          endpoint2.transform_keys!(&:to_sym).merge(:source => source2['uid'], :source_id => source2['id'], :source_name => source2['name'], :digest => digest2, :account_number => "tid")
         ]
         expect(loaded_data[:sources]).to eq(expected_data)
       end
@@ -198,7 +198,7 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
         # Compare it with endpoints and source uids
         loaded_data = YAML.load(config_map_data['custom.yml'])
         expected_data = [
-          endpoint2.transform_keys!(&:to_sym).merge(:source => source2['uid'], :source_id => source2['id'], :source_name => source2['name'], :digest => digest2)
+          endpoint2.transform_keys!(&:to_sym).merge(:source => source2['uid'], :source_id => source2['id'], :source_name => source2['name'], :digest => digest2, :account_number => "tid")
         ]
         expect(loaded_data[:sources]).to eq(expected_data)
         expect(config_map.sources).to eq([source2])

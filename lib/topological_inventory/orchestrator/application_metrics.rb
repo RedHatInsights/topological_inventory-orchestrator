@@ -18,6 +18,10 @@ module TopologicalInventory
         @server&.stop
       end
 
+      def record_metric_scaler_error
+        @metric_scaler_error&.observe(1)
+      end
+
       private
 
       def configure_server(port)
@@ -30,6 +34,9 @@ module TopologicalInventory
       def configure_metrics
         PrometheusExporter::Instrumentation::Process.start
         PrometheusExporter::Metric::Base.default_prefix = "topological_inventory_orchestrator_"
+
+        @metric_scaler_error = PrometheusExporter::Metric::Counter.new("metric_scaler_error", "total number of times the metric_scaler has failed to hit prometheus")
+        @server.collector.register_metric(@metric_scaler_error)
       end
     end
   end

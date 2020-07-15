@@ -8,9 +8,10 @@ module TopologicalInventory
         METRICS_RANGE          = "10m"
         METRICS_STEP           = "1m"
 
-        def initialize(deployment_config, deployment_config_name, prometheus_host, logger)
+        def initialize(exporter, deployment_config, deployment_config_name, prometheus_host, logger)
           super(deployment_config, deployment_config_name, logger)
           @prometheus_host = prometheus_host
+          @prometheus = exporter
           @scaling_allowed.value = false
         end
 
@@ -61,12 +62,15 @@ module TopologicalInventory
           metrics.to_a
         rescue RestClient::BadRequest => e
           logger.error("PrometheusWatcher: Bad request: #{e.response.body}")
+          @prometheus.record_metric_scaler_error
           []
         rescue RestClient::ExceptionWithResponse => e
           logger.error("PrometheusWatcher: RestClient error: #{e.message}")
+          @prometheus.record_metric_scaler_error
           []
         rescue => e
           logger.error("PrometheusWatcher: #{e.message}\n#{e.backtrace.join("\n")}")
+          @prometheus.record_metric_scaler_error
           []
         end
 
