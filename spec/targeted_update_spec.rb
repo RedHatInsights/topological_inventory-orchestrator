@@ -205,8 +205,8 @@ describe TopologicalInventory::Orchestrator::TargetedUpdate do
 
     it "updates sources and keeps others unchanged" do
       changed_source = sources_data[:openshift][@id1].merge('name' => 'Changed!')
-      changed_endpoint = endpoints[@id3].merge('host' => 'my-testing-url.com')
-      changed_digest = 'eb5c76b3094e1f3691e6c710403acdcf17c92e04'
+      changed_endpoint = endpoints[@id3].merge('host' => 'my-testing-url.com', 'receptor_node' => 'a-node')
+      changed_digest = '54b460e847025e028bd9ebe6061ae94360853d08'
 
       subject.add_target('Source', 'update', changed_source)
       subject.add_target('Endpoint', 'update', changed_endpoint)

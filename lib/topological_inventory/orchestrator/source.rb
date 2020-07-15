@@ -76,7 +76,7 @@ module TopologicalInventory
       def azure_tenant
         authentication.try(:[], "extra").try(:[], "azure").try(:[], "tenant_id")
       end
-      
+
       private
 
       def digest_values
@@ -98,6 +98,12 @@ module TopologicalInventory
         if source_type.azure?
           tenant_id = azure_tenant.to_s
           hash['secret']['tenant_id'] = tenant_id if tenant_id.present?
+        end
+
+        # Set the receptor fields if they are present.
+        if endpoint["receptor_node"].present?
+          hash["receptor_node"] = endpoint["receptor_node"]
+          hash["account_number"] = tenant
         end
         hash
       end
