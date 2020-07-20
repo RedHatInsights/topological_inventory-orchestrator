@@ -68,7 +68,7 @@ module TopologicalInventory
           source = sources_by_digest[digest]
           if source.nil?
             # This source is not in API, will be deleted from openshift
-            source = Source.new({}, nil, source_type, nil, :from_sources_api => false)
+            source = Source.new({}, nil, source_type, :from_sources_api => false)
             source.digest = digest
             sources_by_digest[digest] = source
             logger.debug("Assoc Map (#{uid}) -> Source (digest #{digest}) not found")
@@ -272,6 +272,7 @@ module TopologicalInventory
           :path           => source.endpoint['path'],
           :receptor_node  => source.endpoint['receptor_node'],
           :account_number => source.tenant,
+          :image_tag_sha  => source.source_type['collector_image'].split(":").last,
           :digest         => source.digest
         }
       end

@@ -44,10 +44,10 @@ module MockData
 
   def source_types_data
     {
-      :openshift => {"id" => "1", "name" => "openshift", "product_name" => "OpenShift", "vendor" => "Red Hat"},
-      :amazon    => {"id" => "2", "name" => "amazon", "product_name" => "Amazon AWS", "vendor" => "Amazon"},
-      :azure     => {"id" => "3", "name" => "azure", "product_name" => "Azure", "vendor" => "Azure"},
-      :mock      => {"id" => "4", "name" => "mock", "product_name" => "Azure", "vendor" => "Azure"}
+      :openshift => {"id" => "1", "name" => "openshift", "product_name" => "OpenShift", "vendor" => "Red Hat", "collector_image" => "abc123"},
+      :amazon    => {"id" => "2", "name" => "amazon", "product_name" => "Amazon AWS", "vendor" => "Amazon", "collector_image" => "abc123"},
+      :azure     => {"id" => "3", "name" => "azure", "product_name" => "Azure", "vendor" => "Azure", "collector_image" => "abc123"},
+      :mock      => {"id" => "4", "name" => "mock", "product_name" => "Azure", "vendor" => "Azure", "collector_image" => "abc123"},
     }
   end
 
@@ -205,19 +205,19 @@ module MockData
   # Values are for source + endpoint + credentials of the same ID
   def digests_data
     {
-      '1'  => '1d9e34af4e70ad44a47c74aebe0cf74d3980c887',
+      '1'  => '7a8a3dad389031160f79817c14bb5f3adf058335',
       '2'  => '8d4fc3e19f141135ca59f0ba5d9e8b634f04840e',
-      '3'  => 'ee53859fd0b58430b75907894600b77755674b01',
-      '4'  => '98a148ffce1fb8c6875f4b6dc8bd2935b0bb868a',
-      '5'  => '3acba9bf43755682f00942ab56cbf995cd75a702',
-      '6'  => '741fc03f04725dcdda91168ae21750a0b7352ce4',
-      '7'  => '9e48b19ce700bf9535de5b99737c7467965d0b5e',
+      '3'  => '88f879b8aa22eb340019449955accdca62886f64',
+      '4'  => 'dba9f7cc5b15cc2eee74a288e6c04431d2f5e509',
+      '5'  => 'febf0d5b94e4dd2cd23f3a9cd515641885a50980',
+      '6'  => '2628bf51107c4c5cd581179df5d1148821f8a7a8',
+      '7'  => '83f929fdce5dfe931f9ccc6af49e2cfd436740f4',
       '8'  => '5f9e781563ab48e7a67ec4500321b1ebe553f3fc',
       '9'  => '8b14bf8dfa2bc7d74443cd9c4a0d836f1341becb',
       '10' => '5442273b216f7c843de10acc57c33638f7848f74',
       '11' => '3871068443e406fbff7ad6f91bd395bf9482a259',
       '12' => '9e52c47b63dd968ba2349779a86986eff2f2b860',
-      '13' => '579824266004c51aedf3237ad262a493c9c5bbe6'
+      '13' => '658ba6008127dc4e61eb5bbe70ec69be5524b845'
     }
   end
 

@@ -27,10 +27,9 @@ module TopologicalInventory
 
       ORCHESTRATOR_TENANT = "system_orchestrator".freeze
 
-      attr_reader :collector_image_tag, :api, :enabled_source_types
+      attr_reader :api, :enabled_source_types
 
-      def initialize(collector_image_tag:, sources_api:, topology_api:, config_name: 'default', source_types: %w[amazon ansible-tower azure openshift])
-        @collector_image_tag = collector_image_tag
+      def initialize(sources_api:, topology_api:, config_name: 'default', source_types: %w[amazon ansible-tower azure openshift])
         @enabled_source_types = source_types
 
         self.config_name = config_name
@@ -96,6 +95,8 @@ module TopologicalInventory
           if (source_type = SourceType.new(attributes)).supported_source_type?
             logger.debug("Loaded Source type: #{attributes['name']} | #{source_type.sources_per_collector} sources per config map")
           end
+
+          attributes["collector_image"] = get_collector_image(attributes['name'])
           @source_types_by_id[attributes['id']] = source_type
         end
       end
@@ -112,7 +113,7 @@ module TopologicalInventory
               next
             end
 
-            if (collector_definition = source_type.collector_definition(collector_image_tag)).nil?
+            unless source_type.supported_source_type?
               logger.debug("Source #{attributes['id']}: Source Type not supported (#{source_type['name']})")
               next
             end
@@ -121,7 +122,12 @@ module TopologicalInventory
               next unless attributes["availability_status"] == "available"
             end
 
-            Source.new(attributes, tenant, source_type, collector_definition, :from_sources_api => true).tap do |source|
+            if source_type["collector_image"].nil?
+              logger.error("Source #{attributes['id']}: Collector Image for Source Type not found (#{source_type['name']})")
+              next
+            end
+
+            Source.new(attributes, tenant, source_type, :from_sources_api => true).tap do |source|
               source.load_credentials(@api)
 
               @sources_by_digest[source.digest] = source if source.digest.present?
@@ -269,6 +275,11 @@ module TopologicalInventory
         @secrets.to_a.each do |secret|
           secret.delete_in_openshift if secret.config_map.nil?
         end
+      end
+
+      # Get the collector image tag
+      def get_collector_image(type)
+        object_manager.get_collector_image(type)
       end
 
       # Deprecated version of openshift objects should be deleted before sync starts

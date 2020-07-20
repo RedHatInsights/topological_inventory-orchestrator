@@ -6,8 +6,8 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
 
   let(:object_manager) { double('object_manager') }
   let(:openshift_object) { double('openshift_object') }
-  let(:source) { TopologicalInventory::Orchestrator::Source.new({'id' => '1', 'uid' => 'source-1', 'name' => 'Source 1'}, "tid", nil, nil, :from_sources_api => true) }
-  let(:source2) { TopologicalInventory::Orchestrator::Source.new({'id' => '2', 'uid' => 'source-2', 'name' => 'Source 2'}, "tid", nil, nil, :from_sources_api => true) }
+  let(:source) { TopologicalInventory::Orchestrator::Source.new({'id' => '1', 'uid' => 'source-1', 'name' => 'Source 1'}, "tid", nil, :from_sources_api => true) }
+  let(:source2) { TopologicalInventory::Orchestrator::Source.new({'id' => '2', 'uid' => 'source-2', 'name' => 'Source 2'}, "tid", nil, :from_sources_api => true) }
   let(:source_type) { TopologicalInventory::Orchestrator::SourceType.new(source_types_data[:openshift]) }
   let(:secret) { double('secret') }
   let(:deployment_config) { double('deployment_config') }
@@ -28,6 +28,7 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
 
     config_map_def = { :metadata => { :labels => {} }, :data => {} }
     allow(object_manager).to receive(:create_config_map).and_yield(config_map_def)
+    allow(object_manager).to receive(:get_collector_image).and_return("123abc")
 
     allow(secret).to receive(:config_map=)
     allow(deployment_config).to receive(:config_map=)
@@ -98,8 +99,8 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
         # Compare it with endpoints and source uids
         loaded_data = YAML.load(config_map_data['custom.yml'])
         expected_data = [
-          endpoint1.transform_keys!(&:to_sym).merge(:source => source['uid'], :source_id => source['id'], :source_name => source['name'], :digest => digest, :account_number => "tid"),
-          endpoint2.transform_keys!(&:to_sym).merge(:source => source2['uid'], :source_id => source2['id'], :source_name => source2['name'], :digest => digest2, :account_number => "tid")
+          endpoint1.transform_keys!(&:to_sym).merge(:source => source['uid'], :source_id => source['id'], :source_name => source['name'], :digest => digest, :account_number => "tid", :image_tag_sha => "abc123"),
+          endpoint2.transform_keys!(&:to_sym).merge(:source => source2['uid'], :source_id => source2['id'], :source_name => source2['name'], :digest => digest2, :account_number => "tid", :image_tag_sha => "abc123")
         ]
         expect(loaded_data[:sources]).to eq(expected_data)
       end
@@ -198,7 +199,7 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
         # Compare it with endpoints and source uids
         loaded_data = YAML.load(config_map_data['custom.yml'])
         expected_data = [
-          endpoint2.transform_keys!(&:to_sym).merge(:source => source2['uid'], :source_id => source2['id'], :source_name => source2['name'], :digest => digest2, :account_number => "tid")
+          endpoint2.transform_keys!(&:to_sym).merge(:source => source2['uid'], :source_id => source2['id'], :source_name => source2['name'], :digest => digest2, :account_number => "tid", :image_tag_sha => "abc123")
         ]
         expect(loaded_data[:sources]).to eq(expected_data)
         expect(config_map.sources).to eq([source2])
@@ -220,7 +221,7 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
 
       sources_by_digest = {}
       [2, 4].each do |idx|
-        TopologicalInventory::Orchestrator::Source.new({}, nil, nil, '', :from_sources_api => true).tap do |source|
+        TopologicalInventory::Orchestrator::Source.new({}, nil, nil, :from_sources_api => true).tap do |source|
           source.digest = digests[idx]
           sources_by_digest[source.digest] = source
         end
