@@ -9,15 +9,9 @@ describe TopologicalInventory::Orchestrator::TargetedUpdate do
   let(:application_types_response) { list(application_types_data) }
   let(:sources_by_ids) { sources_data.values.reduce({}, :merge) } # Merge array of hashes)
 
-  around do |e|
-    ENV["IMAGE_NAMESPACE"] = "buildfactory"
-    e.run
-    ENV.delete("IMAGE_NAMESPACE")
-  end
-
   let(:kube_client) { TopologicalInventory::Orchestrator::TestModels::KubeClient.new }
   let(:object_manager) { TopologicalInventory::Orchestrator::TestModels::ObjectManager.new(kube_client) }
-  let(:worker) { TopologicalInventory::Orchestrator::Worker.new(:collector_image_tag => "dev", :sources_api => sources_api, :topology_api => topology_api) }
+  let(:worker) { TopologicalInventory::Orchestrator::Worker.new(:sources_api => sources_api, :topology_api => topology_api) }
 
   subject do
     allow(described_class).to receive(:path_to_config).and_return(File.expand_path("../config", File.dirname(__FILE__)))
@@ -206,7 +200,7 @@ describe TopologicalInventory::Orchestrator::TargetedUpdate do
     it "updates sources and keeps others unchanged" do
       changed_source = sources_data[:openshift][@id1].merge('name' => 'Changed!')
       changed_endpoint = endpoints[@id3].merge('host' => 'my-testing-url.com', 'receptor_node' => 'a-node')
-      changed_digest = '54b460e847025e028bd9ebe6061ae94360853d08'
+      changed_digest = '42193e0216f5442f009da367fc0f4140a6b38eed'
 
       subject.add_target('Source', 'update', changed_source)
       subject.add_target('Endpoint', 'update', changed_endpoint)

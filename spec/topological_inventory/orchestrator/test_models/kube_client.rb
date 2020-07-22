@@ -7,7 +7,8 @@ module TopologicalInventory
       class KubeClient
         attr_accessor :config_maps, :deployment_configs,
                       :secrets, :endpoints,
-                      :replication_controllers
+                      :replication_controllers,
+                      :pods
         # {
         #   name => [RecursiveOpenStruct*]
         # }*
@@ -17,6 +18,7 @@ module TopologicalInventory
           self.secrets = {}
           self.endpoints = {}
           self.replication_controllers = {}
+          self.pods = {}
         end
 
         def get_config_maps(label_selector:, namespace:)
@@ -80,6 +82,10 @@ module TopologicalInventory
 
         def delete_secret(name, _namespace)
           secrets.delete(name)
+        end
+
+        def get_pods(_namespace:, label_selector:)
+          find_by_label(pods, label_selector)
         end
 
         private

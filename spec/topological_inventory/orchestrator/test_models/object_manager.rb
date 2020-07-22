@@ -23,6 +23,10 @@ module TopologicalInventory
         def check_deployment_config_quota(definition)
           # Noop
         end
+
+        def get_collector_image(_name)
+          "quay.io/openshift:abc123"
+        end
       end
     end
   end

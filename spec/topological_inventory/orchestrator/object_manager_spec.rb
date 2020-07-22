@@ -10,20 +10,21 @@ describe TopologicalInventory::Orchestrator::ObjectManager do
     before do
       allow(instance).to receive(:kube_connection).and_return(kube_client)
       allow(kube_client).to receive(:get_resource_quota).with("compute-resources-non-terminating", nil).and_return(quota)
+      allow(instance).to receive(:get_collector_image).with("ansible-tower").and_return("quay.io/ansible-tower:abcdefg")
     end
 
     it "quota allows" do
       expect(instance).to receive(:connection).and_return(kube_client)
       expect(kube_client).to receive(:create_deployment_config)
 
-      instance.create_deployment_config("test_name", "test_namespace", "test_image")
+      instance.create_deployment_config("test_name", "ansible-tower")
     end
 
     it "exceeds cpu limit" do
       expect(kube_client).not_to receive(:create_deployment_config)
 
       expect do
-        instance.create_deployment_config("test_name", "test_namespace", "test_image") do |deployment|
+        instance.create_deployment_config("test_name", "ansible-tower") do |deployment|
           deployment[:spec][:template][:spec][:containers].first[:resources][:limits][:cpu] = "7000m"
         end
       end.to raise_error(TopologicalInventory::Orchestrator::ObjectManager::QuotaCpuLimitExceeded)
@@ -33,7 +34,7 @@ describe TopologicalInventory::Orchestrator::ObjectManager do
       expect(kube_client).not_to receive(:create_deployment_config)
 
       expect do
-        instance.create_deployment_config("test_name", "test_namespace", "test_image") do |deployment|
+        instance.create_deployment_config("test_name", "ansible-tower") do |deployment|
           deployment[:spec][:template][:spec][:containers].first[:resources][:requests][:cpu] = "3000m"
         end
       end.to raise_error(TopologicalInventory::Orchestrator::ObjectManager::QuotaCpuRequestExceeded)
@@ -43,7 +44,7 @@ describe TopologicalInventory::Orchestrator::ObjectManager do
       expect(kube_client).not_to receive(:create_deployment_config)
 
       expect do
-        instance.create_deployment_config("test_name", "test_namespace", "test_image") do |deployment|
+        instance.create_deployment_config("test_name", "ansible-tower") do |deployment|
           deployment[:spec][:template][:spec][:containers].first[:resources][:limits][:memory] = "4000Mi"
         end
       end.to raise_error(TopologicalInventory::Orchestrator::ObjectManager::QuotaMemoryLimitExceeded)
@@ -53,7 +54,7 @@ describe TopologicalInventory::Orchestrator::ObjectManager do
       expect(kube_client).not_to receive(:create_deployment_config)
 
       expect do
-        instance.create_deployment_config("test_name", "test_namespace", "test_image") do |deployment|
+        instance.create_deployment_config("test_name", "ansible-tower") do |deployment|
           deployment[:spec][:template][:spec][:containers].first[:resources][:requests][:memory] = "3000Mi"
         end
       end.to raise_error(TopologicalInventory::Orchestrator::ObjectManager::QuotaMemoryRequestExceeded)
