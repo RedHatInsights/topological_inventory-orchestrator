@@ -272,7 +272,10 @@ module TopologicalInventory
                 }],
                 :volumes    => []
               }
-            }
+            },
+            :imagePullSecrets => [
+              {:name => "quay-cloudservices-pull"}
+            ]
           }
         }
       end
