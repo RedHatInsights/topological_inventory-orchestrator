@@ -72,6 +72,29 @@ module TopologicalInventory
         logger.info("[OK] Deleted DeploymentConfig #{self}")
       end
 
+      def update_image(new_image)
+        logger.info("Updating DeploymentConfig Image #{self}")
+
+        # This is ugly, but its a JSON patch we're sending.
+        patch = {
+          :spec => {
+            :template => {
+              :spec => {
+                :containers => [
+                  :name  => name,
+                  :image => new_image
+                ]
+              }
+            }
+          }
+        }
+
+        object_manager.update_deployment_config(name, patch)
+        openshift_object(:reload => true)
+
+        logger.info("[OK] Updated DeploymentConfig Image #{self}")
+      end
+
       # DC config-UID is relation to config-map's template
       def uid
         return @uid if @uid.present?
@@ -87,6 +110,10 @@ module TopologicalInventory
         source_type = config_map&.source_type
         type_name   = source_type.present? ? source_type['name'] : 'unknown'
         "collector-#{type_name}-#{uid}"
+      end
+
+      def image
+        openshift_object.spec.template.spec.containers.first.image
       end
 
       private
