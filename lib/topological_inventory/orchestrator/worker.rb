@@ -339,8 +339,10 @@ module TopologicalInventory
       end
 
       def cleanup_errored_deployment_configs
-        # Get the pods in `Error` status and are deploy pods
-        pods = object_manager.get_pods.select { |e| e.status.phase == "Error" && e.metadata.name.match?(/^collector.*\d+-deploy$/) }
+        # Get the pods in `Failed` status and are deploy pods
+        pods = object_manager.get_pods.select { |e| e.status.phase == "Failed" && e.metadata.name.match?(/^collector.*\d+-deploy$/) }
+
+        logger.info("Deleting failed DeploymentConfigs: [#{pods.map { |pod| pod.metadata.annotations["openshift.io/deployment-config.name"] }}]")
 
         pods.each do |pod|
           object_manager.delete_deployment_config(pod.metadata.annotations["openshift.io/deployment-config.name"])
