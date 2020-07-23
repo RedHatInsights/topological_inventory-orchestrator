@@ -84,7 +84,7 @@ module TopologicalInventory
           secrets.delete(name)
         end
 
-        def get_pods(_namespace:, label_selector:)
+        def get_pods(namespace: nil, label_selector: "")
           find_by_label(pods, label_selector)
         end
 

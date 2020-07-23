@@ -53,6 +53,9 @@ module TopologicalInventory
       end
 
       def make_openshift_match_database
+        # Clean up any errored deploy-pods
+        cleanup_errored_deployment_configs
+
         # Assign sources_per_collector from config
         load_source_types
 
@@ -333,6 +336,15 @@ module TopologicalInventory
           object_manager.delete_secret(name)
         end
         logger.info("Deleting deprecated Secrets: [#{names.join(', ')}]")
+      end
+
+      def cleanup_errored_deployment_configs
+        # Get the pods in `Error` status and are deploy pods
+        pods = object_manager.get_pods.select { |e| e.status.phase == "Error" && e.metadata.name.match?(/^collector.*\d+-deploy$/) }
+
+        pods.each do |pod|
+          object_manager.delete_deployment_config(pod.metadata.annotations["openshift.io/deployment-config.name"])
+        end
       end
 
       def initialize_config

@@ -21,6 +21,10 @@ module TopologicalInventory
         connection.patch_deployment_config(deployment_config_name, { :spec => { :replicas => replicas } }, my_namespace)
       end
 
+      def get_pods
+        kube_connection.get_pods(:namespace => my_namespace)
+      end
+
       def get_deployment_config(name)
         connection.get_deployment_config(name, my_namespace)
       end
@@ -234,7 +238,7 @@ module TopologicalInventory
       end
 
       def deployment_config_definition(name, image)
-        {
+        deploy = {
           :metadata => {
             :name      => name,
             :labels    => {:app => app_name},
@@ -271,13 +275,16 @@ module TopologicalInventory
                   }
                 }],
                 :volumes    => []
-              },
-              :imagePullSecrets => [
-                {:name => "quay-cloudservices-pull"}
-              ]
+              }
             }
           }
         }
+
+        deploy.tap do |obj|
+          if image.include?("quay.io")
+            obj.dig(:spec, :template, :spec)[:imagePullSecrets] = [{:name => "quay-cloudservices-pull"}]
+          end
+        end
       end
 
       def secret_definition(name, string_data)
