@@ -74,6 +74,10 @@ module TopologicalInventory
         # Adds or removes sources to/from openshift
         manage_openshift_collectors
 
+        # Sync the collector images for each configmap just in case an image changed
+        # but the config map stayed the same
+        sync_collector_images
+
         # Remove unused openshift objects
         remove_old_deployments
         remove_old_secrets
@@ -239,6 +243,15 @@ module TopologicalInventory
           else
             logger.debug("Source not changed (#{source})")
           end
+        end
+      end
+
+      def sync_collector_images
+        @config_maps_by_uid.values.each do |cm|
+          # Only sync if the image has changed
+          next if cm.source_type["collector_image"] == cm.deployment_config.image
+
+          cm.deployment_config.update_image(cm.source_type["collector_image"])
         end
       end
 
