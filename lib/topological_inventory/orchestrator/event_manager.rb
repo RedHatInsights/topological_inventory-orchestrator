@@ -51,7 +51,7 @@ module TopologicalInventory
           queue.push(:event_name => "Scheduled.Sync",
                      :model      => nil)
 
-          sleep((::Settings.sync.scheduled_event_hours || 1).hours)
+          sleep((ENV["SCHEDULED_SYNC_HOURS"]&.to_i || 1).hours)
         end
       end
 
