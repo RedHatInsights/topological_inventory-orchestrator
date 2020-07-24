@@ -9,4 +9,3 @@ labels:
   version: "v1"
 sync:
   poll_time_seconds: 10
-  scheduled_event_hours: 1
