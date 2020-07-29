@@ -1,12 +1,6 @@
 describe TopologicalInventory::Orchestrator::Worker do
   include Functions
 
-  around do |e|
-    ENV["IMAGE_NAMESPACE"] = "buildfactory"
-    e.run
-    ENV.delete("IMAGE_NAMESPACE")
-  end
-
   let(:kube_client) { TopologicalInventory::Orchestrator::TestModels::KubeClient.new }
   let(:object_manager) { TopologicalInventory::Orchestrator::TestModels::ObjectManager.new(kube_client) }
 
@@ -18,7 +12,7 @@ describe TopologicalInventory::Orchestrator::Worker do
 
   subject do
     allow(described_class).to receive(:path_to_config).and_return(File.expand_path("../config", File.dirname(__FILE__)))
-    described_class.new(:collector_image_tag => "dev", :sources_api => sources_api, :topology_api => topology_api)
+    described_class.new(:sources_api => sources_api, :topology_api => topology_api)
   end
 
   before do
@@ -281,6 +275,77 @@ describe TopologicalInventory::Orchestrator::Worker do
         assert_openshift_objects_data(sources_data[:amazon]['5'], :missing => true)
         assert_openshift_objects_data(sources_data[:amazon]['6'], :missing => true)
         assert_openshift_objects_data(sources_data[:azure]['7']) # added
+      end
+    end
+
+    context "when the image changes" do
+      before do
+        # Fill openshift first
+        #
+        # 1st sync
+        #
+        @sources_in_openshift = [topological_sources[:openshift]['1'],
+                                 topological_sources[:openshift]['2'],
+                                 topological_sources[:amazon]['4'],
+                                 topological_sources[:amazon]['5']]
+        @available_sources = [available_sources_data(:openshift)['1'],
+                              available_sources_data(:openshift)['2'],
+                              available_sources_data(:amazon)['4'],
+                              available_sources_data(:amazon)['5']].compact
+
+        stub_api_init(:application_types => application_types_response,
+                      :applications      => applications_response,
+                      :source_types      => source_types_response,
+                      :tenants           => tenants_response,
+                      :topology_sources  => list(@sources_in_openshift))
+
+        init_config(:openshift => 1, :amazon => 1, :azure => 1) # per collector
+
+        stub_api_source_calls(sources_data[:openshift]['1'])
+        stub_api_source_calls(sources_data[:openshift]['2'])
+        stub_api_source_calls(sources_data[:amazon]['4'])
+        stub_api_source_calls(sources_data[:amazon]['5'])
+
+        # Run orchestrator
+        subject.send(:make_openshift_match_database)
+        expect(@added).to eq(@available_sources.size)
+
+        assert_openshift_objects_count(1 + 2) # 1 for openshift, 2 for amazon
+      end
+
+      it "updates the deployment config" do
+        #
+        # 2nd sync
+        #
+        # added 1 azure + 1 amazon, deleted 1 openshift + 1 amazon
+        sources_from_api = [topological_sources[:openshift]['1'],
+                            topological_sources[:amazon]['4'],
+                            topological_sources[:amazon]['6'], # new
+                            topological_sources[:azure]['7']]  # new
+
+        # :application_types request cached
+        stub_api_init(:applications     => applications_response,
+                      :source_types     => source_types_response,
+                      :tenants          => tenants_response,
+                      :topology_sources => list(sources_from_api))
+
+        stub_api_source_calls(sources_data[:openshift]['1'])
+        stub_api_source_calls(sources_data[:amazon]['4'])
+        stub_api_source_calls(sources_data[:amazon]['6'])
+        stub_api_source_calls(sources_data[:azure]['7'])
+
+        # Run orchestrator
+        subject.send(:make_openshift_match_database)
+
+        new_cm = subject.send(:config_maps_by_uid).each do |_k, cm|
+          cm.source_type["collector_image"] = "quay.io/ansible:changed"
+        end
+
+        subject.send(:config_maps_by_uid=, new_cm)
+
+        # Run orchestrator
+        expect(object_manager).to receive(:update_deployment_config).exactly(3).times
+        subject.send(:sync_collector_images)
       end
     end
   end

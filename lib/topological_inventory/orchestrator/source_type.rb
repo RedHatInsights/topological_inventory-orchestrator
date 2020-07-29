@@ -28,12 +28,6 @@ module TopologicalInventory
         @sources_per_collector
       end
 
-      def collector_definition(collector_image_tag = 'latest')
-        if supported_source_type?
-          { "image" => "topological-inventory-#{attributes['name']}:#{collector_image_tag}" }
-        end
-      end
-
       def supported_source_type?
         attributes['name'].present? && self[:enabled?]
       end

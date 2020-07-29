@@ -27,10 +27,9 @@ module TopologicalInventory
 
       ORCHESTRATOR_TENANT = "system_orchestrator".freeze
 
-      attr_reader :collector_image_tag, :api, :enabled_source_types
+      attr_reader :api, :enabled_source_types
 
-      def initialize(collector_image_tag:, sources_api:, topology_api:, config_name: 'default', source_types: %w[amazon ansible-tower azure openshift])
-        @collector_image_tag = collector_image_tag
+      def initialize(sources_api:, topology_api:, config_name: 'default', source_types: %w[amazon ansible-tower azure openshift])
         @enabled_source_types = source_types
 
         self.config_name = config_name
@@ -54,6 +53,9 @@ module TopologicalInventory
       end
 
       def make_openshift_match_database
+        # Clean up any errored deploy-pods
+        cleanup_errored_deployment_configs
+
         # Assign sources_per_collector from config
         load_source_types
 
@@ -71,6 +73,10 @@ module TopologicalInventory
 
         # Adds or removes sources to/from openshift
         manage_openshift_collectors
+
+        # Sync the collector images for each configmap just in case an image changed
+        # but the config map stayed the same
+        sync_collector_images
 
         # Remove unused openshift objects
         remove_old_deployments
@@ -96,6 +102,8 @@ module TopologicalInventory
           if (source_type = SourceType.new(attributes)).supported_source_type?
             logger.debug("Loaded Source type: #{attributes['name']} | #{source_type.sources_per_collector} sources per config map")
           end
+
+          attributes["collector_image"] = get_collector_image(attributes['name'])
           @source_types_by_id[attributes['id']] = source_type
         end
       end
@@ -112,7 +120,7 @@ module TopologicalInventory
               next
             end
 
-            if (collector_definition = source_type.collector_definition(collector_image_tag)).nil?
+            unless source_type.supported_source_type?
               logger.debug("Source #{attributes['id']}: Source Type not supported (#{source_type['name']})")
               next
             end
@@ -121,7 +129,12 @@ module TopologicalInventory
               next unless attributes["availability_status"] == "available"
             end
 
-            Source.new(attributes, tenant, source_type, collector_definition, :from_sources_api => true).tap do |source|
+            if source_type["collector_image"].nil?
+              logger.error("Source #{attributes['id']}: Collector Image for Source Type not found (#{source_type['name']})")
+              next
+            end
+
+            Source.new(attributes, tenant, source_type, :from_sources_api => true).tap do |source|
               source.load_credentials(@api)
 
               @sources_by_digest[source.digest] = source if source.digest.present?
@@ -233,6 +246,15 @@ module TopologicalInventory
         end
       end
 
+      def sync_collector_images
+        @config_maps_by_uid.values.each do |cm|
+          # Only sync if the image has changed
+          next if cm.source_type["collector_image"] == cm.deployment_config.image
+
+          cm.deployment_config.update_image(cm.source_type["collector_image"])
+        end
+      end
+
       # Self recovery
       # If config map doesn't have secret (deleted from outside), create new
       def create_missing_secrets
@@ -269,6 +291,11 @@ module TopologicalInventory
         @secrets.to_a.each do |secret|
           secret.delete_in_openshift if secret.config_map.nil?
         end
+      end
+
+      # Get the collector image tag
+      def get_collector_image(type)
+        object_manager.get_collector_image(type)
       end
 
       # Deprecated version of openshift objects should be deleted before sync starts
@@ -322,6 +349,17 @@ module TopologicalInventory
           object_manager.delete_secret(name)
         end
         logger.info("Deleting deprecated Secrets: [#{names.join(', ')}]")
+      end
+
+      def cleanup_errored_deployment_configs
+        # Get the pods in `Failed` status and are deploy pods
+        pods = object_manager.get_pods.select { |e| e.status.phase == "Failed" && e.metadata.name.match?(/^collector.*\d+-deploy$/) }
+
+        logger.info("Deleting failed DeploymentConfigs: [#{pods.map { |pod| pod.metadata.annotations["openshift.io/deployment-config.name"] }}]")
+
+        pods.each do |pod|
+          object_manager.delete_deployment_config(pod.metadata.annotations["openshift.io/deployment-config.name"])
+        end
       end
 
       def initialize_config

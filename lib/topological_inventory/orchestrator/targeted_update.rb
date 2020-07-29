@@ -14,7 +14,6 @@ module TopologicalInventory
       attr_reader :targets
 
       def initialize(worker)
-        @collector_image_tag = worker.collector_image_tag
         @api = TargetedApi.new(:sources_api  => worker.api.sources_api,
                                :topology_api => worker.api.topology_api)
         @enabled_source_types = worker.enabled_source_types
@@ -58,7 +57,7 @@ module TopologicalInventory
 
         load_sources_from_targets
 
-        enable_supported_source_types
+        load_source_types_from_targets
 
         load_applications
 
@@ -75,11 +74,13 @@ module TopologicalInventory
 
       private
 
-      def enable_supported_source_types
+      def load_source_types_from_targets
         @targets.each do |target|
           source_type = target[:source_type]
+          next unless source_type
 
-          source_type[:enabled?] = @enabled_source_types.include?(source_type['name']) if source_type
+          source_type[:enabled?] = @enabled_source_types.include?(source_type['name'])
+          source_type["collector_image"] = object_manager.get_collector_image(source_type['name'])
         end
       end
 
@@ -93,7 +94,6 @@ module TopologicalInventory
           next if skip_destroy_action_of_non_last_app(target)
 
           source, source_type = target[:source], target[:source_type]
-          source.collector_definition = source_type.collector_definition(collector_image_tag)
           source.source_type = source_type
           source['id'] = source['id'].to_s # if source came from event, id is integer, otherwise string
 

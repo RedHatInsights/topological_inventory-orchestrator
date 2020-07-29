@@ -26,10 +26,9 @@ module TopologicalInventory
           logger.warn("Failed to create deployment config, no existing source associated")
           return
         end
-        image = related_source.collector_definition["image"]
 
         logger.info("Creating DeploymentConfig #{self}")
-        object_manager.create_deployment_config(name, ENV["IMAGE_NAMESPACE"], image) do |dc|
+        object_manager.create_deployment_config(name, config_map.source_type["collector_image"]) do |dc|
           dc[:metadata][:labels][LABEL_UNIQUE] = uid
           dc[:metadata][:labels][LABEL_COMMON] = ::Settings.labels.version.to_s
           dc[:metadata][:labels][ConfigMap::LABEL_SOURCE_TYPE] = config_map.source_type['name'] if config_map.source_type.present?
@@ -73,6 +72,29 @@ module TopologicalInventory
         logger.info("[OK] Deleted DeploymentConfig #{self}")
       end
 
+      def update_image(new_image)
+        logger.info("Updating DeploymentConfig Image #{self}")
+
+        # This is ugly, but its a JSON patch we're sending.
+        patch = {
+          :spec => {
+            :template => {
+              :spec => {
+                :containers => [
+                  :name  => name,
+                  :image => new_image
+                ]
+              }
+            }
+          }
+        }
+
+        object_manager.update_deployment_config(name, patch)
+        openshift_object(:reload => true)
+
+        logger.info("[OK] Updated DeploymentConfig Image #{self}")
+      end
+
       # DC config-UID is relation to config-map's template
       def uid
         return @uid if @uid.present?
@@ -90,6 +112,10 @@ module TopologicalInventory
         "collector-#{type_name}-#{uid}"
       end
 
+      def image
+        openshift_object.spec.template.spec.containers.first.image
+      end
+
       private
 
       def container_env_values
@@ -97,8 +123,8 @@ module TopologicalInventory
           {:name => "INGRESS_API", :value => "http://#{ENV["TOPOLOGICAL_INVENTORY_INGRESS_API_SERVICE_HOST"]}:#{ENV["TOPOLOGICAL_INVENTORY_INGRESS_API_SERVICE_PORT"]}"},
           {:name => "CONFIG", :value => 'custom'},
           {:name => "CLOUD_WATCH_LOG_GROUP", :value => ENV["CLOUD_WATCH_LOG_GROUP"]},
-          {:name => "CW_AWS_ACCESS_KEY_ID", :valueFrom => {:secretKeyRef => {:name => 'cloudwatch', :key => 'CW_AWS_ACCESS_KEY_ID'}}},
-          {:name => "CW_AWS_SECRET_ACCESS_KEY", :valueFrom => {:secretKeyRef => {:name => 'cloudwatch', :key => 'CW_AWS_SECRET_ACCESS_KEY'}}},
+          {:name => "CW_AWS_ACCESS_KEY_ID", :valueFrom => {:secretKeyRef => {:name => 'cloudwatch', :key => 'aws_access_key_id'}}},
+          {:name => "CW_AWS_SECRET_ACCESS_KEY", :valueFrom => {:secretKeyRef => {:name => 'cloudwatch', :key => 'aws_secret_access_key'}}},
           {:name => "QUEUE_HOST", :value => ENV["QUEUE_HOST"]},
           {:name => "QUEUE_PORT", :value => ENV["QUEUE_PORT"]},
           {:name => "RECEPTOR_CONTROLLER_HOST", :value => ENV["RECEPTOR_CONTROLLER_HOST"]},

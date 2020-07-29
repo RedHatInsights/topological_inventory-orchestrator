@@ -73,7 +73,7 @@ module TopologicalInventory
         def hash_to_api_object(data, dest_model = nil)
           case dest_model
           when :source_type then SourceType.new(data)
-          when :source then Source.new(data, data['tenant'], nil, nil, :from_sources_api => true)
+          when :source then Source.new(data, data['tenant'], nil, :from_sources_api => true)
           else ApiObject.new(data)
           end
         end

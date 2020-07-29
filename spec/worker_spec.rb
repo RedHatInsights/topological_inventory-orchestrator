@@ -1,12 +1,6 @@
 describe TopologicalInventory::Orchestrator::Worker do
   include Functions
 
-  around do |e|
-    ENV["IMAGE_NAMESPACE"] = "buildfactory"
-    e.run
-    ENV.delete("IMAGE_NAMESPACE")
-  end
-
   let(:kube_client) { TopologicalInventory::Orchestrator::TestModels::KubeClient.new }
   let(:object_manager) { TopologicalInventory::Orchestrator::TestModels::ObjectManager.new(kube_client) }
 
@@ -19,7 +13,7 @@ describe TopologicalInventory::Orchestrator::Worker do
 
   subject do
     allow(described_class).to receive(:path_to_config).and_return(File.expand_path("../config", File.dirname(__FILE__)))
-    described_class.new(:collector_image_tag => "dev", :sources_api => sources_api, :topology_api => topology_api)
+    described_class.new(:sources_api => sources_api, :topology_api => topology_api)
   end
 
   before do
@@ -90,7 +84,7 @@ describe TopologicalInventory::Orchestrator::Worker do
         object_manager.create_secret("secret_#{version}", {}) do |secret|
           secret[:metadata][:labels][TopologicalInventory::Orchestrator::Secret::LABEL_COMMON] = version
         end
-        object_manager.create_deployment_config("dc_#{version}", 'my-namespace', 'image') do |dc|
+        object_manager.create_deployment_config("dc_#{version}", "openshift") do |dc|
           dc[:metadata][:labels][TopologicalInventory::Orchestrator::DeploymentConfig::LABEL_COMMON] = version
         end
       end

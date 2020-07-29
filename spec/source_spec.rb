@@ -1,12 +1,9 @@
 describe TopologicalInventory::Orchestrator::Source do
   include MockData
 
-  let(:collector_definition) { { "image" => "topological-inventory-openshift:latest" } }
-
   before do
     @source = described_class.new(sources_data[:openshift]["1"], nil,
-                                  double, collector_definition,
-                                  :from_sources_api => true)
+                                  double, :from_sources_api => true)
   end
 
   context "#add_to_openshift" do

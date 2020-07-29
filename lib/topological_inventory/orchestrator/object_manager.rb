@@ -21,6 +21,10 @@ module TopologicalInventory
         connection.patch_deployment_config(deployment_config_name, { :spec => { :replicas => replicas } }, my_namespace)
       end
 
+      def get_pods
+        kube_connection.get_pods(:namespace => my_namespace)
+      end
+
       def get_deployment_config(name)
         connection.get_deployment_config(name, my_namespace)
       end
@@ -32,13 +36,17 @@ module TopologicalInventory
         )
       end
 
-      def create_deployment_config(name, image_namespace, image)
-        definition = deployment_config_definition(name, image_namespace, image)
+      def create_deployment_config(name, type)
+        definition = deployment_config_definition(name, type)
         yield(definition) if block_given?
         check_deployment_config_quota(definition)
         connection.create_deployment_config(definition)
       rescue KubeException => e
         raise unless e.message =~ /already exists/
+      end
+
+      def update_deployment_config(deployment_config_name, patch)
+        connection.patch_deployment_config(deployment_config_name, patch, my_namespace)
       end
 
       def delete_deployment_config(name)
@@ -113,6 +121,15 @@ module TopologicalInventory
       def delete_replication_controller(name)
         kube_connection.delete_replication_controller(name, my_namespace)
       rescue Kubeclient::ResourceNotFoundError
+      end
+
+      def get_collector_image(name)
+        pod = kube_connection.get_pods(
+          :namespace      => my_namespace,
+          :label_selector => "name=topological-inventory-#{name}-operations"
+        ).first
+
+        pod&.spec&.containers&.first&.image
       end
 
       private
@@ -224,8 +241,8 @@ module TopologicalInventory
         }
       end
 
-      def deployment_config_definition(name, image_namespace, image)
-        {
+      def deployment_config_definition(name, image)
+        deploy = {
           :metadata => {
             :name      => name,
             :labels    => {:app => app_name},
@@ -249,7 +266,7 @@ module TopologicalInventory
               :spec     => {
                 :containers => [{
                   :name      => name,
-                  :image     => "#{image_namespace}/#{image}",
+                  :image     => image,
                   :resources => {
                     :limits   => {
                       :cpu    => "50m",
@@ -263,21 +280,15 @@ module TopologicalInventory
                 }],
                 :volumes    => []
               }
-            },
-            :triggers => [{
-              :type              => "ImageChange",
-              :imageChangeParams => {
-                :automatic      => true,
-                :containerNames => [name],
-                :from           => {
-                  :kind      => "ImageStreamTag",
-                  :name      => image,
-                  :namespace => image_namespace
-                }
-              }
-            }]
+            }
           }
         }
+
+        deploy.tap do |obj|
+          if image.include?("quay.io")
+            obj.dig(:spec, :template, :spec)[:imagePullSecrets] = [{:name => "quay-cloudservices-pull"}]
+          end
+        end
       end
 
       def secret_definition(name, string_data)

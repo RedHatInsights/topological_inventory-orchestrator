@@ -8,7 +8,6 @@ $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 def parse_args
   require 'optimist'
   opts = Optimist.options do
-    opt :collector_image_tag, "Image tag to use for the collector images, e.g. latest, stable", :type => :string, :default => ENV["IMAGE_TAG"], :required => ENV["IMAGE_TAG"].nil?
     opt :metrics_port, "Port to expose the metrics endpoint on, 0 to disable metrics", :type => :integer, :default => 9394
     opt :sources_api, "URL to the sources service, e.g. http://localhost:3000/api/v1.0", :type => :string,
         :default => ENV["SOURCES_API"], :required => ENV["SOURCES_API"].nil?
@@ -34,5 +33,10 @@ Signal.trap("TERM") do
   exit
 end
 
-w = TopologicalInventory::Orchestrator::Worker.new(:collector_image_tag => args[:collector_image_tag], :sources_api => args[:sources_api], :topology_api => args[:topology_api], :config_name => args[:config], :source_types => args[:source_types]&.split(","))
+w = TopologicalInventory::Orchestrator::Worker.new(
+  :sources_api  => args[:sources_api],
+  :topology_api => args[:topology_api],
+  :config_name  => args[:config],
+  :source_types => args[:source_types]&.split(",")
+)
 w.run

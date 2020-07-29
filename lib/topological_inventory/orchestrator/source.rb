@@ -15,12 +15,11 @@ module TopologicalInventory
         name
       end
 
-      def initialize(attributes, tenant, source_type, collector_definition, from_sources_api:)
+      def initialize(attributes, tenant, source_type, from_sources_api: nil)
         super(attributes)
 
         self.tenant = tenant
         self.source_type = source_type
-        self.collector_definition = collector_definition
         self.from_sources_api = from_sources_api
 
         self.endpoint = nil
@@ -85,8 +84,7 @@ module TopologicalInventory
           "endpoint_path"   => endpoint["path"],
           "endpoint_port"   => endpoint["port"].to_s,
           "endpoint_scheme" => endpoint["scheme"],
-          "image"           => collector_definition["image"],
-          "image_namespace" => ENV["IMAGE_NAMESPACE"],
+          "image"           => source_type["collector_image"],
           "source_id"       => attributes["id"],
           "source_uid"      => attributes["uid"],
           "secret"          => {
