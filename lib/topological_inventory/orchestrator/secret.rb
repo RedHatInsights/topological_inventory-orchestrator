@@ -145,8 +145,8 @@ module TopologicalInventory
 
       def source_to_data(source)
         {
-          'username' => source.credentials['username'],
-          'password' => source.credentials['password']
+          'username' => source.credentials.try(:[], 'username'),
+          'password' => source.credentials.try(:[], 'password')
         }
       end
     end
