@@ -1,9 +1,10 @@
 describe TopologicalInventory::Orchestrator::Source do
   include MockData
+  let(:source_type) { double(:[] => "quay.io/ansible:123abc", :azure? => false) }
 
   before do
     @source = described_class.new(sources_data[:openshift]["1"], nil,
-                                  double, :from_sources_api => true)
+                                  source_type, :from_sources_api => true)
   end
 
   context "#add_to_openshift" do
@@ -48,21 +49,41 @@ describe TopologicalInventory::Orchestrator::Source do
   end
 
   context "#load_credentials" do
-    it "calls api 3 times" do
-      endpoint, authentication, credentials = double, double, double
-      allow(endpoint).to receive(:[])
-      allow(authentication).to receive(:[])
+    context "when there is a receptor node" do
+      it "still computes the digest even without auth/creds" do
+        endpoint = {"receptor_node" => "asdf"}
+        api = double("api")
 
-      api = double("api")
-      allow(api).to receive_messages(:get_endpoint       => endpoint,
-                                     :get_authentication => authentication,
-                                     :get_credentials    => credentials)
+        allow(api).to receive_messages(:get_endpoint       => endpoint,
+                                       :get_authentication => nil,
+                                       :get_credentials    => nil)
 
-      @source.load_credentials(api)
+        @source.load_credentials(api)
 
-      expect(@source.endpoint).to eq(endpoint)
-      expect(@source.authentication).to eq(authentication)
-      expect(@source.credentials).to eq(credentials)
+        expect(@source.endpoint).to eq(endpoint)
+        expect(@source.authentication).to be_falsey
+        expect(@source.credentials).to be_falsey
+        expect(@source.digest).to be_truthy
+      end
+    end
+
+    context "when there is an endpoint + authentication" do
+      it "calls api 3 times" do
+        endpoint, authentication, credentials = double, double, double
+        allow(endpoint).to receive(:[])
+        allow(authentication).to receive(:[])
+
+        api = double("api")
+        allow(api).to receive_messages(:get_endpoint       => endpoint,
+                                       :get_authentication => authentication,
+                                       :get_credentials    => credentials)
+
+        @source.load_credentials(api)
+
+        expect(@source.endpoint).to eq(endpoint)
+        expect(@source.authentication).to eq(authentication)
+        expect(@source.credentials).to eq(credentials)
+      end
     end
   end
 end
