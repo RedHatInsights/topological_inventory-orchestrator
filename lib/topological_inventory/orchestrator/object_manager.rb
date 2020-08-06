@@ -269,12 +269,12 @@ module TopologicalInventory
                   :image     => image,
                   :resources => {
                     :limits   => {
-                      :cpu    => "50m",
-                      :memory => "400Mi"
+                      :cpu    => ENV["COLLECTOR_LIMIT_CPU"] || "100m",
+                      :memory => ENV["COLLECTOR_LIMIT_MEM"] || "500Mi"
                     },
                     :requests => {
-                      :cpu    => "20m",
-                      :memory => "200Mi"
+                      :cpu    => ENV["COLLECTOR_REQUEST_CPU"] || "50m",
+                      :memory => ENV["COLLECTOR_REQUEST_MEM"] || "200Mi"
                     }
                   }
                 }],
