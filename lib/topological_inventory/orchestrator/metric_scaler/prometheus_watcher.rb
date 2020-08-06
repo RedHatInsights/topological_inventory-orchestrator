@@ -33,7 +33,7 @@ module TopologicalInventory
             until finished?
               new_metrics = download_metrics
               if new_metrics.present?
-                new_metrics.each do |time_value_pair|
+                new_metrics[1][1].each do |time_value_pair|
                   metrics << time_value_pair[1].to_f
                 end
 
