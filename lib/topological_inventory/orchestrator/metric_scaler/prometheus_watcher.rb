@@ -75,11 +75,30 @@ module TopologicalInventory
         end
 
         def scale_to_desired_replicas
-          super if scaling_allowed?
+          return unless configured?
+
+          desired_count = desired_replicas
+
+          return if desired_count == deployment_config.spec.replicas # already at max or minimum
+
+          logger.info("Scaling #{deployment_config_name} to #{desired_count} replicas")
+          object_manager.scale(deployment_config_name, desired_count)
+
+          # Wait for scaling to complete in Openshift
+          sleep(1) until worker_pods.length == desired_count
+          logger.info("Scaling #{deployment_config_name} complete")
+
           @scaling_allowed.value = false
         end
 
         private
+
+        def worker_pods
+          object_manager
+            .get_pods
+            .select { |pod| pod.metadata.annotations["openshift.io/deployment-config.name"] == deployment_config_name }
+            .select { |pod| pod.status.phase == "Running" }
+        end
 
         def desired_replicas
           avg_consumer_lag = metrics.average
