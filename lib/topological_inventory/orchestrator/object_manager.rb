@@ -25,6 +25,10 @@ module TopologicalInventory
         kube_connection.get_pods(:namespace => my_namespace)
       end
 
+      def delete_pod(name)
+        kube_connection.delete_pod(name, my_namespace)
+      end
+
       def get_deployment_config(name)
         connection.get_deployment_config(name, my_namespace)
       end
