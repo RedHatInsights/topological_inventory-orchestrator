@@ -67,7 +67,10 @@ module TopologicalInventory
 
       def digest(reload: false)
         return @digest if @digest.present? && !reload
-        return nil if attributes.nil? || endpoint.nil? || authentication.nil? || credentials.nil?
+        return nil if attributes.nil? || endpoint.nil?
+
+        # If we are not going through a receptor node
+        return nil if endpoint["receptor_node"].blank? && (authentication.nil? || credentials.nil?)
 
         @digest = compute_digest(digest_values)
       end
@@ -88,8 +91,8 @@ module TopologicalInventory
           "source_id"       => attributes["id"],
           "source_uid"      => attributes["uid"],
           "secret"          => {
-            "password" => credentials["password"],
-            "username" => credentials["username"],
+            "password" => credentials.try(:[], "password"),
+            "username" => credentials.try(:[], "username"),
           }
         }
         # Azure has extra parameter "tenant_id"

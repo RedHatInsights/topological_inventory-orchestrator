@@ -81,6 +81,7 @@ module TopologicalInventory
         # Remove unused openshift objects
         remove_old_deployments
         remove_old_secrets
+        remove_completed_deploy_pods
       end
 
       protected
@@ -359,6 +360,15 @@ module TopologicalInventory
 
         pods.each do |pod|
           object_manager.delete_deployment_config(pod.metadata.annotations["openshift.io/deployment-config.name"])
+        end
+      end
+
+      def remove_completed_deploy_pods
+        pods = object_manager.get_pods.select { |e| e.status.phase == "Succeeded" && e.metadata.name.match?(/^collector.*\d+-deploy$/) }
+
+        logger.info("Deleting dangling deploy pods: [#{pods.map { |pod| pod.metadata.name }.join(",")}]")
+        pods.each do |pod|
+          object_manager.delete_pod(pod.metadata.name)
         end
       end
 

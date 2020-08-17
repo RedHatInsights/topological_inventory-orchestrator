@@ -37,7 +37,7 @@ describe TopologicalInventory::Orchestrator::MetricScaler::PrometheusWatcher do
     end
 
     it "fills metrics array when successful" do
-      downloaded = 10.times.collect { |i| [Time.now.to_i, 10]}
+      downloaded = [nil, [nil, Array.new(10) { [Time.now.to_i, 10] }]]
       allow(watcher).to receive(:download_metrics).and_return(downloaded)
 
       watcher.start
@@ -47,7 +47,7 @@ describe TopologicalInventory::Orchestrator::MetricScaler::PrometheusWatcher do
     end
 
     it "allows scaling run only when successful" do
-      downloaded = 5.times.collect { |i| [Time.now.to_i, 10]}
+      downloaded = [nil, [nil, Array.new(5) { [Time.now.to_i, 10] }]]
       allow(watcher).to receive(:download_metrics).and_return(downloaded)
 
       watcher.start
@@ -67,7 +67,7 @@ describe TopologicalInventory::Orchestrator::MetricScaler::PrometheusWatcher do
     end
 
     it "doesn't allow scaling run when zero data collected" do
-      downloaded = 10.times.collect { |i| [Time.now.to_i, 0]}
+      downloaded = [nil, [nil, Array.new(10) { [Time.now.to_i, 0] }]]
       allow(watcher).to receive(:download_metrics).and_return(downloaded)
 
       watcher.start
