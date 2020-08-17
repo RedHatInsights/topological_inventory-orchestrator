@@ -348,5 +348,35 @@ describe TopologicalInventory::Orchestrator::Worker do
         subject.send(:sync_collector_images)
       end
     end
+
+    context "when there are leftover deployment pods" do
+      let(:k8s) { double }
+      let(:some_pods) do
+        [
+          OpenStruct.new(
+            :status   => OpenStruct.new(:phase => "Succeeded"),
+            :metadata => OpenStruct.new(:name => "collector-asdf-2-deploy")
+          ),
+          OpenStruct.new(
+            :status   => OpenStruct.new(:phase => "Running"),
+            :metadata => OpenStruct.new(:name => "collector-asdf-3-deploy")
+          ),
+          OpenStruct.new(
+            :status   => OpenStruct.new(:phase => "Running"),
+            :metadata => OpenStruct.new(:name => "collector-asdf")
+          )
+        ]
+      end
+
+      before do
+        allow(subject).to receive(:object_manager).and_return(k8s)
+        allow(k8s).to receive(:get_pods).and_return(some_pods)
+      end
+
+      it "cleans them up" do
+        expect(k8s).to receive(:delete_pod).with("collector-asdf-2-deploy").and_return(true)
+        expect(subject.send(:remove_completed_deploy_pods)).to eq [some_pods.first]
+      end
+    end
   end
 end
