@@ -136,6 +136,19 @@ module TopologicalInventory
         pod&.spec&.containers&.first&.image
       end
 
+      def collector_resources
+        {
+          :limits   => {
+            :cpu    => ENV["COLLECTOR_LIMIT_CPU"] || "100m",
+            :memory => ENV["COLLECTOR_LIMIT_MEM"] || "500Mi"
+          },
+          :requests => {
+            :cpu    => ENV["COLLECTOR_REQUEST_CPU"] || "50m",
+            :memory => ENV["COLLECTOR_REQUEST_MEM"] || "200Mi"
+          }
+        }
+      end
+
       private
 
       def connection
@@ -271,16 +284,7 @@ module TopologicalInventory
                 :containers => [{
                   :name      => name,
                   :image     => image,
-                  :resources => {
-                    :limits   => {
-                      :cpu    => ENV["COLLECTOR_LIMIT_CPU"] || "100m",
-                      :memory => ENV["COLLECTOR_LIMIT_MEM"] || "500Mi"
-                    },
-                    :requests => {
-                      :cpu    => ENV["COLLECTOR_REQUEST_CPU"] || "50m",
-                      :memory => ENV["COLLECTOR_REQUEST_MEM"] || "200Mi"
-                    }
-                  }
+                  :resources => collector_resources
                 }],
                 :volumes    => []
               }
