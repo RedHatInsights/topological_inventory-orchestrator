@@ -1,5 +1,6 @@
 /.bundle/
 /Gemfile.lock
+/config/database.yml
 
 # generated rubocop file
 /.rubocop-https*

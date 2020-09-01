@@ -1,0 +1,32 @@
+#!/usr/bin/env ruby
+
+$LOAD_PATH << File.expand_path("../lib", __dir__)
+require "bundler/setup"
+require "topological_inventory/scheduler/worker"
+require "topological_inventory/core/ar_helper"
+require "optimist"
+
+def parse_args
+  Optimist.options do
+    opt :queue_host, "Kafka messaging: hostname or IP", :type => :string, :default => ENV["QUEUE_HOST"] || "localhost"
+    opt :queue_port, "Kafka messaging: port", :type => :integer, :default => (ENV["QUEUE_PORT"] || 9092).to_i
+  end
+end
+
+def check_args(args)
+  %i[queue_host queue_port].each do |arg|
+    Optimist.die arg, "can't be blank" if args[arg].blank?
+    Optimist.die arg, "can't be zero" if arg.to_s.index('port').present? && args[arg].zero?
+  end
+end
+
+args = parse_args
+check_args(args)
+
+TopologicalInventory::Core::ArHelper.database_yaml_path = Pathname.new(__dir__).join("../config/database.yml")
+TopologicalInventory::Core::ArHelper.load_environment!
+
+begin
+  scheduler_worker = TopologicalInventory::Scheduler::Worker.new(:host => args[:queue_host], :port => args[:queue_port])
+  scheduler_worker.run
+end

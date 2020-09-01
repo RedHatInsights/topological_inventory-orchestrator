@@ -15,6 +15,8 @@ gem "optimist"
 gem "prometheus_exporter",  "~> 0.4.5"
 gem "rest-client",          "~> 2.0"
 
+gem 'topological_inventory-core', '~> 1.1.5'
+
 group :test do
   gem "rake",               ">= 12.3.3"
   gem 'rubocop',             "~>0.69.0", :require => false
