@@ -185,7 +185,7 @@ module TopologicalInventory
         v3_connection = raw_connect(manager_uri("/oapi"))
         return v3_connection if client_connection_valid?(v3_connection)
 
-        v4_connection = raw_connect(manager_uri("/apis"), "apps.openshift.io/v1")
+        v4_connection = raw_connect(manager_uri("/apis/apps.openshift.io"))
         return v4_connection if client_connection_valid?(v4_connection)
 
         raise "Failed to detect a valid OpenShift connection"
