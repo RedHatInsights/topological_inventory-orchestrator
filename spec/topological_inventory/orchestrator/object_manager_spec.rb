@@ -80,7 +80,7 @@ describe TopologicalInventory::Orchestrator::ObjectManager do
       URI::HTTPS.build(
         :host => kube_service_host,
         :port => kube_service_port,
-        :path => "/apis"
+        :path => "/apis/apps.openshift.io"
       )
     end
 
@@ -110,7 +110,7 @@ describe TopologicalInventory::Orchestrator::ObjectManager do
     context "when the v3 connection is not available" do
       before do
         expect(v3_connection).to receive(:discover).and_raise(kube_resource_error)
-        expect(instance).to receive(:raw_connect).with(v4_uri, "apps.openshift.io/v1").and_return(v4_connection)
+        expect(instance).to receive(:raw_connect).with(v4_uri).and_return(v4_connection)
       end
 
       it "returns the v4 connection when it is available" do
