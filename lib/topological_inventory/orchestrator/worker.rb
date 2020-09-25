@@ -74,10 +74,6 @@ module TopologicalInventory
         # Adds or removes sources to/from openshift
         manage_openshift_collectors
 
-        # Sync the collectors for each configmap just in case an image
-        # or resource settings changed but the config map stayed the same
-        sync_running_collectors
-
         # Remove unused openshift objects
         remove_old_deployments
         remove_old_secrets
@@ -241,10 +237,20 @@ module TopologicalInventory
               # Remove config map and secret if they exist
               source.remove_from_openshift
             end
+          #
+          # c) Source was found in Sources API and Config map, but zero Pods present (deployment has failed)
+          #
+          elsif source.config_map.deployment_config.openshift_object.status.availableReplicas == 0
+            # retry the deployment by deleting and re-creating the deployment
+            source.config_map.deployment_config.recreate_in_openshift
           else
             logger.debug("Source not changed (#{source})")
           end
         end
+
+        # Sync the collectors for each configmap just in case an image
+        # or resource settings changed but the config map stayed the same
+        sync_running_collectors
       end
 
       def sync_running_collectors

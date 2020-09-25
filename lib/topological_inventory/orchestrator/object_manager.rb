@@ -31,6 +31,9 @@ module TopologicalInventory
 
       def get_deployment_config(name)
         connection.get_deployment_config(name, my_namespace)
+      rescue KubeException
+        logger.warn("[WARN] Deployment Config not found: #{name}")
+        nil
       end
 
       def get_deployment_configs(label_selector)
