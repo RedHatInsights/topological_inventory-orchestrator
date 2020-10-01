@@ -378,5 +378,31 @@ describe TopologicalInventory::Orchestrator::Worker do
         expect(subject.send(:remove_completed_deploy_pods)).to eq [some_pods.first]
       end
     end
+
+    context "when there is a failed deployment" do
+      let(:deployment) do
+        double(:openshift_object => kube_client.create_deployment_config(
+          :metadata => {:name => "a failed deployment"},
+          :status   => {:availableReplicas => 0}
+        ))
+      end
+
+      before do
+        source = OpenStruct.new(
+          :from_sources_api => true,
+          :config_map       => OpenStruct.new(
+            :deployment_config => deployment
+          )
+        )
+
+        subject.send(:"sources_by_digest=", "0xDEADBEEF" => source)
+        subject.send(:"config_maps_by_uid=", {})
+      end
+
+      it "recreates the deployment" do
+        expect(deployment).to receive(:recreate_in_openshift).once
+        subject.send(:manage_openshift_collectors)
+      end
+    end
   end
 end

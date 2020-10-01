@@ -8,6 +8,7 @@ module TopologicalInventory
       LABEL_COMMON = "tp-inventory/collector".freeze
       LABEL_DIGEST = "topological-inventory/collector_digest".freeze # single-source DCs
       LABEL_UNIQUE = "tp-inventory/config-uid".freeze
+      RECREATE_RETRY_COUNT = 3
 
       attr_accessor :config_map
 
@@ -70,6 +71,24 @@ module TopologicalInventory
         object_manager.delete_deployment_config(name)
 
         logger.info("[OK] Deleted DeploymentConfig #{self}")
+      end
+
+      def recreate_in_openshift
+        delete_in_openshift
+        retry_count = 0
+
+        until retry_count == RECREATE_RETRY_COUNT
+          sleep 10
+          break unless object_manager.get_deployment_config(name)
+
+          retry_count += 1
+        end
+
+        if retry_count == RECREATE_RETRY_COUNT
+          logger.warn("[WARN] failed to re-create non-ready deployment #{self}")
+        else
+          create_in_openshift
+        end
       end
 
       def update_image(new_image)

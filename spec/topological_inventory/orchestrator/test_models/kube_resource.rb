@@ -4,6 +4,8 @@ module TopologicalInventory
       class KubeResource < ::Kubeclient::Resource
         def initialize(hash = nil, args = {})
           hash[:data] = encode_secrets(hash.delete(:stringData)) if hash.present? && hash.key?(:stringData)
+          hash[:status] = {:availableReplicas => 1} unless hash[:status]
+
           super(hash, args)
         end
 
