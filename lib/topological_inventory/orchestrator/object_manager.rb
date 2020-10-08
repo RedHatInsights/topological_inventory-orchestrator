@@ -4,6 +4,7 @@ require "more_core_extensions/core_ext/string/iec60027_2"
 module TopologicalInventory
   module Orchestrator
     class ObjectManager
+      include Logging
       TOKEN_FILE   = "/run/secrets/kubernetes.io/serviceaccount/token".freeze
       CA_CERT_FILE = "/run/secrets/kubernetes.io/serviceaccount/ca.crt".freeze
 
@@ -31,6 +32,9 @@ module TopologicalInventory
 
       def get_deployment_config(name)
         connection.get_deployment_config(name, my_namespace)
+      rescue KubeException
+        logger.warn("[WARN] Deployment Config not found: #{name}")
+        nil
       end
 
       def get_deployment_configs(label_selector)
@@ -47,6 +51,7 @@ module TopologicalInventory
         connection.create_deployment_config(definition)
       rescue KubeException => e
         raise unless e.message =~ /already exists/
+        logger.warn("[WARN] Deployment Config already exists: #{name}")
       end
 
       def update_deployment_config(deployment_config_name, patch)
@@ -69,6 +74,7 @@ module TopologicalInventory
         connection.delete_deployment_config(name, my_namespace, :delete_options => delete_options)
         delete_replication_controller(rc.metadata.name) if rc
       rescue Kubeclient::ResourceNotFoundError
+        logger.warn("[WARN] Deployment Config does not exist: #{name}")
       end
 
       def get_secrets(label_selector)
@@ -84,6 +90,7 @@ module TopologicalInventory
         kube_connection.create_secret(definition)
       rescue KubeException => e
         raise unless e.message =~ /already exists/
+        logger.warn("[WARN] Secret already exists: #{name}")
       end
 
       def update_secret(secret)
@@ -93,6 +100,7 @@ module TopologicalInventory
       def delete_secret(name)
         kube_connection.delete_secret(name, my_namespace)
       rescue Kubeclient::ResourceNotFoundError
+        logger.warn("[WARN] Secret not found: #{name}")
       end
 
       def create_config_map(name)
@@ -101,6 +109,7 @@ module TopologicalInventory
         kube_connection.create_config_map(definition)
       rescue KubeException => e
         raise unless e.message =~ /already exists/
+        logger.warn("[WARN] ConfigMap already exists: #{name}")
       end
 
       def get_config_maps(label_selector)
@@ -125,6 +134,7 @@ module TopologicalInventory
       def delete_replication_controller(name)
         kube_connection.delete_replication_controller(name, my_namespace)
       rescue Kubeclient::ResourceNotFoundError
+        logger.warn("[WARN] ReplicationController not found: #{name}")
       end
 
       def get_collector_image(name)

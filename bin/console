@@ -11,4 +11,14 @@ def default_worker
   TopologicalInventory::Orchestrator::Worker.new(sources_api: ENV["SOURCES_API"], topology_api: ENV["TOPOLOGICAL_INVENTORY_API"])
 end
 
+def populated_worker
+  default_worker.tap do |w|
+    w.send(:load_source_types)
+    w.send(:load_sources)
+    w.send(:load_config_maps)
+    w.send(:load_secrets)
+    w.send(:load_deployment_configs)
+  end
+end
+
 IRB.start
