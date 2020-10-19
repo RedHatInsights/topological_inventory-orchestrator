@@ -8,7 +8,7 @@ $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 def parse_args
   require 'optimist'
   opts = Optimist.options do
-    opt :metrics_port, "Port to expose the metrics endpoint on, 0 to disable metrics", :type => :integer, :default => 9394
+    opt :metrics_port, "Port to expose the metrics endpoint on, 0 to disable metrics", :type => :integer, :default => (ENV["METRICS_PORT"] || 9394).to_i
     opt :sources_api, "URL to the sources service, e.g. http://localhost:3000/api/v1.0", :type => :string,
         :default => ENV["SOURCES_API"], :required => ENV["SOURCES_API"].nil?
     opt :topology_api, "URL to the topological inventory service, e.g. http://localhost:4000/api/v0.1", :type => :string,
@@ -22,11 +22,11 @@ def parse_args
 end
 
 require "topological_inventory-orchestrator"
-require "topological_inventory/orchestrator/application_metrics"
+require "topological_inventory/orchestrator/metrics/orchestrator"
 
 args = parse_args
 
-metrics = TopologicalInventory::Orchestrator::ApplicationMetrics.new(args[:metrics_port])
+metrics = TopologicalInventory::Orchestrator::Metrics::Orchestrator.new(args[:metrics_port])
 
 Signal.trap("TERM") do
   metrics.stop_server
@@ -37,6 +37,7 @@ w = TopologicalInventory::Orchestrator::Worker.new(
   :sources_api  => args[:sources_api],
   :topology_api => args[:topology_api],
   :config_name  => args[:config],
-  :source_types => args[:source_types]&.split(",")
+  :source_types => args[:source_types]&.split(","),
+  :metrics      => metrics
 )
 w.run

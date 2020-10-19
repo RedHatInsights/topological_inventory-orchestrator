@@ -62,15 +62,15 @@ module TopologicalInventory
           metrics.to_a
         rescue RestClient::BadRequest => e
           logger.error("PrometheusWatcher: Bad request: #{e.response.body}")
-          @prometheus.record_metric_scaler_error
+          @prometheus.record_error
           []
         rescue RestClient::ExceptionWithResponse => e
           logger.error("PrometheusWatcher: RestClient error: #{e.message}")
-          @prometheus.record_metric_scaler_error
+          @prometheus.record_error
           []
         rescue => e
           logger.error("PrometheusWatcher: #{e.message}\n#{e.backtrace.join("\n")}")
-          @prometheus.record_metric_scaler_error
+          @prometheus.record_error
           []
         end
 

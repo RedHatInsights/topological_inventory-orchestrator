@@ -14,9 +14,11 @@ module TopologicalInventory
       attr_reader :targets
 
       def initialize(worker)
-        @api = TargetedApi.new(:sources_api  => worker.api.sources_api,
+        @api = TargetedApi.new(:metrics      => worker.metrics,
+                               :sources_api  => worker.api.sources_api,
                                :topology_api => worker.api.topology_api)
         @enabled_source_types = worker.enabled_source_types
+        @metrics = worker.metrics
 
         clear_targets
       end
@@ -163,6 +165,7 @@ module TopologicalInventory
         @api.update_topological_inventory_source_refresh_status(target[:source], "deployed")
       rescue TopologicalInventory::Orchestrator::ObjectManager::QuotaError
         log_msg_for_target(target, "Skipping Deployment Config creation for source #{target[:source]['id']} because it would exceed quota")
+        metrics&.record_error(:quota_error)
         @api.update_topological_inventory_source_refresh_status(target[:source], "quota_limited")
         destroy_target(target)
       end

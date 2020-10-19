@@ -5,6 +5,8 @@ module TopologicalInventory
 
       attr_writer :openshift_object
 
+      delegate :metrics, :to => :object_manager
+
       def initialize(object_manager, openshift_object = nil)
         self.object_manager = object_manager
         self.openshift_object = openshift_object

@@ -9,6 +9,8 @@ module TopologicalInventory
     class EventManager
       include Logging
 
+      delegate :metrics, :to => :worker
+
       def self.run!(worker)
         manager = new(worker)
         manager.run!
@@ -80,6 +82,8 @@ module TopologicalInventory
         full_sync = false
 
         events.each do |event|
+          metrics&.record_event(event[:event_name])
+
           if event[:event_name] == 'Scheduled.Sync'
             full_sync = true
             break
@@ -96,6 +100,7 @@ module TopologicalInventory
         end
       rescue => e
         logger.error("#{e.message}\n#{e.backtrace.join('\n')}")
+        metrics&.record_error(:event_manager)
       end
 
       def persist_ref

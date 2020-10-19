@@ -49,7 +49,7 @@ module TopologicalInventory
       end
 
       def object_manager
-        @object_manager ||= ObjectManager.new
+        @object_manager ||= ObjectManager.new(@metrics)
       end
     end
   end
