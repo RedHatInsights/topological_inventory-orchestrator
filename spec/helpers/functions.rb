@@ -130,7 +130,7 @@ module Functions
   end
 
   def request_filter(filter_key, filter_value, limit: nil)
-    @api ||= TopologicalInventory::Orchestrator::TargetedApi.new(:sources_api => sources_api, :topology_api => topology_api)
+    @api ||= TopologicalInventory::Orchestrator::TargetedApi.new(:metrics => nil, :sources_api => sources_api, :topology_api => topology_api)
     @api.send(:make_params_string, filter_key, filter_value, limit)
   end
 

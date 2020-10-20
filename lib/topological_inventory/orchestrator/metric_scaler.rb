@@ -44,7 +44,7 @@ module TopologicalInventory
         if dc.metadata.annotations["metric_scaler_prometheus_query"]
           PrometheusWatcher.new(@metrics, dc, dc_name, @prometheus_hostname, logger)
         else
-          Watcher.new(dc, dc_name, logger)
+          Watcher.new(@metrics, dc, dc_name, logger)
         end
       end
 

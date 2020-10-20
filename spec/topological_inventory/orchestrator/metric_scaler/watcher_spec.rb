@@ -1,5 +1,5 @@
-require File.join(__dir__, "../../../../lib/topological_inventory/orchestrator/metric_scaler/watcher")
-require File.join(__dir__, "../../../../lib/topological_inventory/orchestrator/object_manager")
+require "topological_inventory/orchestrator/metric_scaler/watcher"
+require "topological_inventory/orchestrator/object_manager"
 
 describe TopologicalInventory::Orchestrator::MetricScaler::Watcher do
   let(:logger) { Logger.new(StringIO.new).tap { |logger| allow(logger).to receive(:info) } }
@@ -19,8 +19,9 @@ describe TopologicalInventory::Orchestrator::MetricScaler::Watcher do
     let(:deployment)     { double("deployment", :metadata => double("metadata", :name => "deployment-#{rand(100..500)}", :annotations => annotations), :spec => double("spec", :replicas => replicas)) }
     let(:metrics)        { watcher.send(:metrics) }
     let(:object_manager) { double("TopologicalInventory::Orchestrator::ObjectManager", :get_deployment_configs => [deployment], :get_deployment_config => deployment) }
+    let(:prometheus)     { double("TopologicalInventory::Orchestrator::Metrics::MetricsScaler") }
     let(:replicas)       { 2 }
-    let(:watcher)        { described_class.new(deployment, deployment.metadata.name, logger) }
+    let(:watcher)        { described_class.new(prometheus, deployment, deployment.metadata.name, logger) }
 
     before { allow(TopologicalInventory::Orchestrator::ObjectManager).to receive(:new).and_return(object_manager) }
 

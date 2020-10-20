@@ -2,6 +2,7 @@ describe TopologicalInventory::Orchestrator::Worker do
   include Functions
 
   let(:kube_client) { TopologicalInventory::Orchestrator::TestModels::KubeClient.new }
+  let(:metrics) { double('Metrics::Orchestrator') }
   let(:object_manager) { TopologicalInventory::Orchestrator::TestModels::ObjectManager.new(kube_client) }
 
   # Predefined responses
@@ -13,7 +14,7 @@ describe TopologicalInventory::Orchestrator::Worker do
 
   subject do
     allow(described_class).to receive(:path_to_config).and_return(File.expand_path("../config", File.dirname(__FILE__)))
-    described_class.new(:sources_api => sources_api, :topology_api => topology_api)
+    described_class.new(:metrics => metrics, :sources_api => sources_api, :topology_api => topology_api)
   end
 
   before do
@@ -64,6 +65,7 @@ describe TopologicalInventory::Orchestrator::Worker do
       end
 
       expect(subject.send(:object_manager)).to receive(:check_deployment_config_quota).and_raise(::TopologicalInventory::Orchestrator::ObjectManager::QuotaCpuLimitExceeded).exactly(available_sources_size).times
+      expect(metrics).to receive(:record_error).with(:quota_error).exactly(available_sources_size).times
 
       expect(kube_client).not_to receive(:create_deployment_config)
 

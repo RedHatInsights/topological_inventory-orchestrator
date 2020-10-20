@@ -9,9 +9,8 @@ module TopologicalInventory
         METRICS_STEP           = "1m"
 
         def initialize(exporter, deployment_config, deployment_config_name, prometheus_host, logger)
-          super(deployment_config, deployment_config_name, logger)
+          super(exporter, deployment_config, deployment_config_name, logger)
           @prometheus_host = prometheus_host
-          @prometheus = exporter
           @scaling_allowed.value = false
         end
 

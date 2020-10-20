@@ -4,7 +4,6 @@ module TopologicalInventory
   module Orchestrator
     class Metrics
       class Orchestrator < TopologicalInventory::Orchestrator::Metrics
-
         def record_event(event_name)
           @events_counter&.observe(1, :event_name => event_name.to_s)
         end
@@ -26,7 +25,7 @@ module TopologicalInventory
 
           @config_maps_gauge = PrometheusExporter::Metric::Gauge.new("config_maps", 'number of active collector config maps')
           @deployments_gauge = PrometheusExporter::Metric::Gauge.new("deployment_configs", 'number of active collector deployment configs')
-          @events_counter = PrometheusExporter::Metric::Counter.new("event", "total number of received events")
+          @events_counter = PrometheusExporter::Metric::Counter.new("events_count", "total number of received events")
           @secrets_gauge = PrometheusExporter::Metric::Gauge.new("secrets", 'number of active collector secrets')
 
           @server.collector.register_metric(@events_counter)
