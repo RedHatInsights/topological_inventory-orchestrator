@@ -166,6 +166,7 @@ module TopologicalInventory
 
       def container_env_values
         [
+          {:name => "LOG_LEVEL", :value => ENV['COLLECTOR_LOG_LEVEL'] || "WARN"},
           {:name => "INGRESS_API", :value => "http://#{ENV["TOPOLOGICAL_INVENTORY_INGRESS_API_SERVICE_HOST"]}:#{ENV["TOPOLOGICAL_INVENTORY_INGRESS_API_SERVICE_PORT"]}"},
           {:name => "CONFIG", :value => 'custom'},
           {:name => "COLLECTOR_FULL_REFRESH_FREQUENCY", :value => '3600'},   # tower-related only
