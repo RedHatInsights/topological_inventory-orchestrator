@@ -8,6 +8,8 @@ module TopologicalInventory
       TOKEN_FILE   = "/run/secrets/kubernetes.io/serviceaccount/token".freeze
       CA_CERT_FILE = "/run/secrets/kubernetes.io/serviceaccount/ca.crt".freeze
 
+      attr_accessor :metrics
+
       class QuotaError < RuntimeError; end
       class QuotaCpuLimitExceeded < QuotaError; end
       class QuotaCpuRequestExceeded < QuotaError; end
@@ -16,6 +18,10 @@ module TopologicalInventory
 
       def self.available?
         File.exist?(TOKEN_FILE) && File.exist?(CA_CERT_FILE)
+      end
+
+      def initialize(metrics)
+        self.metrics = metrics
       end
 
       def scale(deployment_config_name, replicas)
@@ -44,11 +50,13 @@ module TopologicalInventory
         )
       end
 
-      def create_deployment_config(name, type)
+      def create_deployment_config(name, type, source_type = 'unknown')
         definition = deployment_config_definition(name, type)
         yield(definition) if block_given?
         check_deployment_config_quota(definition)
         connection.create_deployment_config(definition)
+
+        metrics&.record_deployment_configs(:add, :source_type => source_type)
       rescue KubeException => e
         raise unless e.message =~ /already exists/
         logger.warn("[WARN] Deployment Config already exists: #{name}")
@@ -58,7 +66,7 @@ module TopologicalInventory
         connection.patch_deployment_config(deployment_config_name, patch, my_namespace)
       end
 
-      def delete_deployment_config(name)
+      def delete_deployment_config(name, source_type = 'unknown')
         rc = kube_connection.get_replication_controllers(
           :label_selector => "openshift.io/deployment-config.name=#{name}",
           :namespace      => my_namespace
@@ -73,6 +81,8 @@ module TopologicalInventory
         )
         connection.delete_deployment_config(name, my_namespace, :delete_options => delete_options)
         delete_replication_controller(rc.metadata.name) if rc
+
+        metrics&.record_deployment_configs(:remove, :source_type => source_type)
       rescue Kubeclient::ResourceNotFoundError
         logger.warn("[WARN] Deployment Config does not exist: #{name}")
       end
@@ -84,10 +94,12 @@ module TopologicalInventory
         )
       end
 
-      def create_secret(name, data)
+      def create_secret(name, data, source_type = 'unknown')
         definition = secret_definition(name, data)
         yield(definition) if block_given?
         kube_connection.create_secret(definition)
+
+        metrics&.record_secrets(:add, :source_type => source_type)
       rescue KubeException => e
         raise unless e.message =~ /already exists/
         logger.warn("[WARN] Secret already exists: #{name}")
@@ -97,16 +109,20 @@ module TopologicalInventory
         kube_connection.update_secret(secret)
       end
 
-      def delete_secret(name)
+      def delete_secret(name, source_type = 'unknown')
         kube_connection.delete_secret(name, my_namespace)
+
+        metrics&.record_secrets(:remove, :source_type => source_type)
       rescue Kubeclient::ResourceNotFoundError
         logger.warn("[WARN] Secret not found: #{name}")
       end
 
-      def create_config_map(name)
+      def create_config_map(name, source_type = 'unknown')
         definition = config_map_definition(name)
         yield(definition) if block_given?
         kube_connection.create_config_map(definition)
+
+        metrics&.record_config_maps(:add, :source_type => source_type)
       rescue KubeException => e
         raise unless e.message =~ /already exists/
         logger.warn("[WARN] ConfigMap already exists: #{name}")
@@ -123,8 +139,9 @@ module TopologicalInventory
         kube_connection.update_config_map(map)
       end
 
-      def delete_config_map(name)
+      def delete_config_map(name, source_type = 'unknown')
         kube_connection.delete_config_map(name, my_namespace)
+        metrics&.record_config_maps(:remove, :source_type => source_type)
       end
 
       def get_endpoint(name)

@@ -29,7 +29,7 @@ module TopologicalInventory
         end
 
         logger.info("Creating DeploymentConfig #{self}")
-        object_manager.create_deployment_config(name, config_map.source_type["collector_image"]) do |dc|
+        object_manager.create_deployment_config(name, config_map.source_type["collector_image"], source_type_name) do |dc|
           dc[:metadata][:labels][LABEL_UNIQUE] = uid
           dc[:metadata][:labels][LABEL_COMMON] = ::Settings.labels.version.to_s
           dc[:metadata][:labels][ConfigMap::LABEL_SOURCE_TYPE] = config_map.source_type['name'] if config_map.source_type.present?
@@ -68,7 +68,7 @@ module TopologicalInventory
       def delete_in_openshift
         logger.info("Deleting DeploymentConfig #{self}")
 
-        object_manager.delete_deployment_config(name)
+        object_manager.delete_deployment_config(name, source_type_name)
 
         logger.info("[OK] Deleted DeploymentConfig #{self}")
       end
@@ -185,6 +185,10 @@ module TopologicalInventory
 
       def load_openshift_object
         object_manager.get_deployment_configs(LABEL_COMMON).detect { |s| s.metadata.labels[LABEL_UNIQUE] == uid }
+      end
+
+      def source_type_name
+        config_map&.source_type.try(:[], 'name') || 'unknown'
       end
     end
   end

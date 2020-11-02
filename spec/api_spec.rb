@@ -2,16 +2,16 @@ describe TopologicalInventory::Orchestrator::Api do
   include MockData
   include Functions
 
-  describe "#internal_url_for" do
-    let(:api) { TopologicalInventory::Orchestrator::Api.new(:sources_api => sources_api, :topology_api => topology_api) }
+  let(:metrics) { double("Metrics/Orchestrator", :record_deployment_configs => nil, :record_config_maps => nil, :record_secrets => nil) }
+  let(:api) { TopologicalInventory::Orchestrator::Api.new(:sources_api => sources_api, :topology_api => topology_api, :metrics => metrics) }
 
+  describe "#internal_url_for" do
     it "replaces the path with /internal/v0.1/<path>" do
       expect(api.send(:topology_internal_url_for, "the/best/path")).to eq("http://topology.local:8080/internal/v1.0/the/best/path")
     end
   end
 
   describe "#each_resource" do
-    let(:api) { TopologicalInventory::Orchestrator::Api.new(:sources_api => sources_api, :topology_api => topology_api) }
     let(:path1) { "/api/topological-inventory/v1.0/some_collection" }
     let(:path2) { "/api/topological-inventory/v1.0/some_collection?offset=10&limit=10" }
     let(:path3) { "/api/topological-inventory/v1.0/some_collection?offset=20&limit=10" }

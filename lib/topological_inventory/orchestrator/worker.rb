@@ -27,15 +27,20 @@ module TopologicalInventory
 
       ORCHESTRATOR_TENANT = "system_orchestrator".freeze
 
-      attr_reader :api, :enabled_source_types
+      attr_reader :api, :enabled_source_types, :metrics
 
-      def initialize(sources_api:, topology_api:, config_name: 'default', source_types: %w[amazon ansible-tower azure openshift])
+      def initialize(config_name: 'default',
+                     metrics: nil,
+                     source_types: %w[amazon ansible-tower azure openshift],
+                     sources_api:,
+                     topology_api:)
         @enabled_source_types = source_types
 
+        self.metrics     = metrics
         self.config_name = config_name
         initialize_config
 
-        @api = Api.new(:sources_api => sources_api, :topology_api => topology_api)
+        @api = Api.new(:metrics => metrics, :sources_api => sources_api, :topology_api => topology_api)
       end
 
       def run
@@ -83,12 +88,14 @@ module TopologicalInventory
       protected
 
       def object_manager
-        @object_manager ||= ObjectManager.new
+        @object_manager ||= ObjectManager.new(metrics)
       end
 
       attr_accessor :config_name,
                     :source_types_by_id, :sources_by_digest,
                     :config_maps_by_uid, :deployment_configs, :secrets
+
+      attr_writer :metrics
 
       def load_source_types
         @source_types_by_id = {}
@@ -114,6 +121,7 @@ module TopologicalInventory
           begin
             if (source_type = @source_types_by_id[attributes['source_type_id']]).nil?
               logger.error("Source #{attributes['id']}: Source Type not found (#{attributes['source_type_id']})")
+              metrics&.record_error(:source_type_not_found)
               next
             end
 
@@ -128,6 +136,7 @@ module TopologicalInventory
 
             if source_type["collector_image"].nil?
               logger.error("Source #{attributes['id']}: Collector Image for Source Type not found (#{source_type['name']})")
+              metrics&.record_error(:image_not_found)
               next
             end
 
@@ -138,6 +147,7 @@ module TopologicalInventory
             end
           rescue => err
             logger.error("Failed to load source #{attributes["name"]}: #{err}\n#{err.backtrace.join("\n")}")
+            metrics&.record_error(:load_sources)
           end
         end
 
@@ -148,7 +158,7 @@ module TopologicalInventory
       # - source types collected from API
       # - sources collected from API
       def load_config_maps
-        @config_maps_by_uid = {}
+        @config_maps_by_uid, by_type = {}, {}
 
         object_manager.get_config_maps("#{ConfigMap::LABEL_COMMON}=#{::Settings.labels.version}").each do |openshift_object|
           config_map = ConfigMap.new(object_manager, openshift_object)
@@ -158,6 +168,15 @@ module TopologicalInventory
 
           # Assign sources by digest (or create new source)
           config_map.associate_sources(@sources_by_digest)
+
+          # Remember metrics
+          src_type_name = config_map.source_type.try(:[], 'name')
+          by_type[src_type_name] = by_type[src_type_name].to_i + 1
+        end
+
+        # Set metrics
+        by_type.each_pair do |source_type_name, cnt|
+          metrics&.record_config_maps(:value => cnt, :source_type => source_type_name)
         end
 
         logger.debug("ConfigMaps loaded: #{@config_maps_by_uid.values.count}")
@@ -166,7 +185,7 @@ module TopologicalInventory
       # Loads deployment configs(DC) from Openshift and pairs them with config maps
       # Then creates deployment configs for config maps which doesn't have it's associated DC (i.e. manually deleted)
       def load_deployment_configs
-        @deployment_configs = []
+        @deployment_configs, by_type = [], {}
 
         object_manager.get_deployment_configs("#{DeploymentConfig::LABEL_COMMON}=#{::Settings.labels.version}").each do |openshift_object|
           deployment_config = DeploymentConfig.new(object_manager, openshift_object)
@@ -177,7 +196,16 @@ module TopologicalInventory
           if (map = @config_maps_by_uid[deployment_config.uid]).present?
             map.deployment_config = deployment_config
             deployment_config.config_map = map
+
+            # Remember metrics
+            src_type_name = map.source_type.try(:[], 'name')
+            by_type[src_type_name] = by_type[src_type_name].to_i + 1
           end
+        end
+
+        # Set metrics
+        by_type.each_pair do |source_type_name, cnt|
+          metrics&.record_deployment_configs(:value => cnt, :source_type => source_type_name)
         end
 
         create_missing_deployment_configs
@@ -188,7 +216,7 @@ module TopologicalInventory
       # Loads secrets from Openshift and pairs them with config maps
       # Then creates secrets for config maps which doesn't have it's associated secret (i.e. manually deleted)
       def load_secrets
-        @secrets = []
+        @secrets, by_type = [], {}
 
         object_manager.get_secrets("#{Secret::LABEL_COMMON}=#{::Settings.labels.version}").each do |openshift_object|
           secret = Secret.new(object_manager, openshift_object)
@@ -199,7 +227,16 @@ module TopologicalInventory
           if (map = @config_maps_by_uid[secret.uid]).present?
             map.secret = secret
             secret.config_map = map
+
+            # Remember metrics
+            src_type_name = map.source_type.try(:[], 'name')
+            by_type[src_type_name] = by_type[src_type_name].to_i + 1
           end
+        end
+
+        # Set metrics
+        by_type.each_pair do |source_type_name, cnt|
+          metrics&.record_secrets(:value => cnt, :source_type => source_type_name)
         end
 
         create_missing_secrets
@@ -232,6 +269,7 @@ module TopologicalInventory
               @api.update_topological_inventory_source_refresh_status(source, "deployed")
             rescue TopologicalInventory::Orchestrator::ObjectManager::QuotaError
               logger.info("Skipping Deployment Config creation for source #{source["id"]} because it would exceed quota.")
+              metrics&.record_error(:quota_error)
               @api.update_topological_inventory_source_refresh_status(source, "quota_limited")
 
               # Remove config map and secret if they exist
@@ -296,6 +334,7 @@ module TopologicalInventory
             map.create_deployment_config
           rescue TopologicalInventory::Orchestrator::ObjectManager::QuotaError
             logger.info("Skipping Deployment Config creation for config map #{map} because it would exceed quota.")
+            metrics&.record_error(:quota_error)
           end
         end
       end
@@ -341,7 +380,9 @@ module TopologicalInventory
         config_maps.each do |config_map|
           name = config_map.metadata.name
           names << name
-          object_manager.delete_config_map(name)
+
+          source_type = config_map.metadata.labels[TopologicalInventory::Orchestrator::ConfigMap::LABEL_SOURCE_TYPE]
+          object_manager.delete_config_map(name, source_type)
         end
         logger.info("Deleting deprecated ConfigMaps: [#{names.join(', ')}]")
       end

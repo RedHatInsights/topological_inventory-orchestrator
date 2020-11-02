@@ -18,7 +18,7 @@ module TopologicalInventory
         logger.info("Creating Secret #{self}")
         raise "Cannot create secret, no config map associated" if config_map.nil?
 
-        object_manager.create_secret(name, data) do |secret|
+        object_manager.create_secret(name, data, source_type_name) do |secret|
           secret[:metadata][:labels][LABEL_UNIQUE] = uid
           secret[:metadata][:labels][LABEL_COMMON] = ::Settings.labels.version.to_s
           secret[:metadata][:labels][ConfigMap::LABEL_SOURCE_TYPE] = config_map.source_type['name'] if config_map.source_type.present?
@@ -64,6 +64,7 @@ module TopologicalInventory
         end
       rescue JSON::ParserError => e
         logger.error("[ERROR] Updating secret #{self}: #{e.message}")
+        metrics&.record_error(:secret)
       end
 
       def targeted_delete(source)
@@ -87,12 +88,13 @@ module TopologicalInventory
         end
       rescue JSON::ParserError => e
         logger.error("[ERROR] Updating secret #{self}: #{e.message}")
+        metrics&.record_error(:secret)
       end
 
       def delete_in_openshift
         logger.info("Deleting Secret #{self}")
 
-        object_manager.delete_secret(name)
+        object_manager.delete_secret(name, source_type_name)
 
         logger.info("[OK] Deleted Secret #{self}")
       end
@@ -148,6 +150,10 @@ module TopologicalInventory
           'username' => source.credentials.try(:[], 'username'),
           'password' => source.credentials.try(:[], 'password')
         }
+      end
+
+      def source_type_name
+        config_map&.source_type.try(:[], 'name') || 'unknown'
       end
     end
   end
