@@ -24,6 +24,7 @@ module TopologicalInventory
       def run!
         Thread.new { event_listener }
         Thread.new { scheduler }
+        Thread.new { health_checker }
 
         processor
       end
@@ -101,6 +102,16 @@ module TopologicalInventory
       rescue => e
         logger.error("#{e.message}\n#{e.backtrace.join('\n')}")
         metrics&.record_error(:event_manager)
+      end
+
+      # Check the (k8s|topo|sources) apis to make sure we're healthy
+      def health_checker
+        sources_api = URI.parse(worker.api.sources_api)
+        topology_api = URI.parse(worker.api.topology_api)
+        k8s = worker.send(:object_manager)
+        interval = worker.send(:health_check_interval)
+
+        HealthCheck.new(sources_api, topology_api, k8s, interval).run
       end
 
       def persist_ref

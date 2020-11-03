@@ -14,6 +14,7 @@ require "topological_inventory/orchestrator/api"
 require "topological_inventory/orchestrator/config_map"
 require "topological_inventory/orchestrator/deployment_config"
 require "topological_inventory/orchestrator/event_manager"
+require 'topological_inventory/orchestrator/health_check'
 require "topological_inventory/orchestrator/secret"
 require "topological_inventory/orchestrator/source_type"
 require "topological_inventory/orchestrator/source"
@@ -27,17 +28,19 @@ module TopologicalInventory
 
       ORCHESTRATOR_TENANT = "system_orchestrator".freeze
 
-      attr_reader :api, :enabled_source_types, :metrics
+      attr_reader :api, :enabled_source_types, :metrics, :health_check_interval
 
       def initialize(config_name: 'default',
                      metrics: nil,
                      source_types: %w[amazon ansible-tower azure openshift],
                      sources_api:,
-                     topology_api:)
+                     topology_api:,
+                     health_check_interval: 60)
         @enabled_source_types = source_types
 
         self.metrics     = metrics
         self.config_name = config_name
+        self.health_check_interval = health_check_interval
         initialize_config
 
         @api = Api.new(:metrics => metrics, :sources_api => sources_api, :topology_api => topology_api)
@@ -95,7 +98,7 @@ module TopologicalInventory
                     :source_types_by_id, :sources_by_digest,
                     :config_maps_by_uid, :deployment_configs, :secrets
 
-      attr_writer :metrics
+      attr_writer :metrics, :health_check_interval
 
       def load_source_types
         @source_types_by_id = {}

@@ -7,6 +7,8 @@ RUN dnf -y --disableplugin=subscription-manager module enable ruby:2.5 && \
       gcc-c++ make redhat-rpm-config \
       # For git based gems
       git \
+      # For checking service status
+      nmap-ncat \
       && \
     dnf --disableplugin=subscription-manager clean all
 
