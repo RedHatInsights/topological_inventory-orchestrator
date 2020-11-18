@@ -1,6 +1,10 @@
+require 'topological_inventory/orchestrator/metrics/orchestrator'
+
 describe TopologicalInventory::Orchestrator::ObjectManager do
+  let(:metrics) { double("Metrics/Orchestrator", :record_deployment_configs => nil, :record_config_maps => nil, :record_secrets => nil) }
+  let(:instance) { described_class.new(metrics) }
+
   context "#create_deployment_config" do
-    let(:instance)    { described_class.new }
     let(:kube_client) { double("Kubeclient::Client") }
     let(:quota)       { Kubeclient::Resource.new(:kind => "ResourceQuota", :status => status) }
     let(:status)      { Kubeclient::Resource.new(:hard => status_hard, :used => status_used) }
@@ -62,7 +66,6 @@ describe TopologicalInventory::Orchestrator::ObjectManager do
   end
 
   describe "#detect_openshift_connection (private)" do
-    let(:instance)          { described_class.new }
     let(:kube_service_host) { "kube.example.com" }
     let(:kube_service_port) { 123 }
     let(:v3_connection)     { instance_double(Kubeclient::Client, "v3_connection") }
@@ -121,6 +124,59 @@ describe TopologicalInventory::Orchestrator::ObjectManager do
       it "raises when no connection is available" do
         expect(v4_connection).to receive(:discover).and_raise(kube_resource_error)
         expect { instance.send(:detect_openshift_connection) }.to raise_error(RuntimeError)
+      end
+    end
+  end
+
+  context "metrics" do
+    let(:source_type) { 'azure' }
+
+    before do
+      allow(instance).to receive_messages(:connection      => double('connection').as_null_object,
+                                          :kube_connection => double('kube_connection').as_null_object)
+    end
+
+    context "create calls 'add'" do
+      it "for ConfigMaps" do
+        expect(metrics).to receive(:record_config_maps).with(:add, :source_type => source_type)
+
+        instance.create_config_map('', source_type)
+      end
+
+      it "for DeploymentConfigs" do
+        expect(metrics).to receive(:record_deployment_configs).with(:add, :source_type => source_type)
+
+        allow(instance).to receive_messages(:check_deployment_config_quota => nil)
+
+        instance.create_deployment_config('', '', source_type)
+      end
+
+      it "for Secrets" do
+        expect(metrics).to receive(:record_secrets).with(:add, :source_type => source_type)
+
+        instance.create_secret('', '', source_type)
+      end
+    end
+
+    context "delete calls 'remove'" do
+      it "for ConfigMaps" do
+        expect(metrics).to receive(:record_config_maps).with(:remove, :source_type => source_type)
+
+        instance.delete_config_map('', source_type)
+      end
+
+      it "for DeploymentConfigs'" do
+        expect(metrics).to receive(:record_deployment_configs).with(:remove, :source_type => source_type)
+
+        allow(instance).to receive_messages(:delete_replication_controller => nil,
+                                            :scale                         => nil)
+        instance.delete_deployment_config('name', source_type)
+      end
+
+      it "for Secrets" do
+        expect(metrics).to receive(:record_secrets).with(:remove, :source_type => source_type)
+
+        instance.delete_secret('', source_type)
       end
     end
   end

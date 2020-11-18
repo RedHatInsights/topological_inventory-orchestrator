@@ -137,7 +137,7 @@ describe TopologicalInventory::Orchestrator::MetricScaler::PrometheusWatcher do
     end
 
     it "logs a metric" do
-      expect(prometheus).to receive(:record_metric_scaler_error).once
+      expect(prometheus).to receive(:record_error).once
 
       watcher.start
       watcher.thread.join

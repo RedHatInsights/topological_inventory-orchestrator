@@ -160,9 +160,9 @@ module TopologicalInventory
       def create_in_openshift(source)
         logger.info("Creating ConfigMap #{self} by Source #{source}")
 
-        object_manager.create_config_map(name) do |map|
+        object_manager.create_config_map(name, source_type_name) do |map|
           map[:metadata][:labels][LABEL_COMMON] = ::Settings.labels.version.to_s
-          map[:metadata][:labels][LABEL_SOURCE_TYPE] = source_type['name'] if source_type.present?
+          map[:metadata][:labels][LABEL_SOURCE_TYPE] = source_type_name if source_type.present?
           map[:metadata][:labels][LABEL_UNIQUE] = uid
           map[:data][:uid] = uid
           map[:data][:digests] = [source.digest].to_json
@@ -216,14 +216,13 @@ module TopologicalInventory
 
         logger.info("Deleting ConfigMap #{self}")
 
-        object_manager.delete_config_map(name)
+        object_manager.delete_config_map(name, source_type_name)
 
         logger.info("[OK] Deleted ConfigMap #{self}")
       end
 
       def name
-        type_name = source_type.present? ? source_type['name'] : 'unknown'
-        "config-#{type_name}-#{uid}"
+        "config-#{source_type_name}-#{uid}"
       end
 
       # New ConfigMap is associated with random UUID
@@ -401,6 +400,10 @@ module TopologicalInventory
         else
           sources.size
         end
+      end
+
+      def source_type_name
+        source_type.try(:[], 'name') || 'unknown'
       end
 
       def new_secret

@@ -11,10 +11,10 @@ args = Optimist.options do
   opt :prometheus_port, "Port of the prometheus metrics server", :type => :integer, :default => ENV['PROMETHEUS_PORT']&.to_i
 end
 
-require "topological_inventory/orchestrator/application_metrics"
+require "topological_inventory/orchestrator/metrics/metrics_scaler"
 require "topological_inventory/orchestrator/metric_scaler"
 
-metrics = TopologicalInventory::Orchestrator::ApplicationMetrics.new(args[:metrics_port])
+metrics = TopologicalInventory::Orchestrator::Metrics::MetricsScaler.new(args[:metrics_port])
 
 Signal.trap("TERM") do
   metrics.stop_server

@@ -8,11 +8,12 @@ module TopologicalInventory
 
         attr_reader :deployment_config, :deployment_config_name, :logger, :finished, :thread
 
-        def initialize(deployment_config, deployment_config_name, logger)
+        def initialize(metrics, deployment_config, deployment_config_name, logger)
           @deployment_config   = deployment_config
           @deployment_config_name = deployment_config_name
           @finished = Concurrent::AtomicBoolean.new(false)
           @logger = logger
+          @prometheus = metrics
           @scaling_allowed = Concurrent::AtomicBoolean.new(true)
 
           logger.info("Metrics scaling enabled for #{deployment_config_name}")
@@ -102,7 +103,7 @@ module TopologicalInventory
 
         def object_manager
           require "topological_inventory/orchestrator/object_manager"
-          @object_manager ||= ObjectManager.new
+          @object_manager ||= ObjectManager.new(@prometheus)
         end
 
         ### Metrics scraping

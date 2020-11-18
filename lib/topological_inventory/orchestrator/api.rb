@@ -8,13 +8,13 @@ module TopologicalInventory
 
       include Logging
 
-      attr_accessor :sources_api, :sources_internal_api, :topology_api, :topology_internal_api
+      attr_accessor :metrics, :sources_api, :sources_internal_api, :topology_api, :topology_internal_api
 
-      def initialize(sources_api:, topology_api:)
-        self.sources_api = sources_api
-        self.sources_internal_api = URI.parse(sources_api).tap { |uri| uri.path = "/internal/v1.0" }.to_s
-
-        self.topology_api = topology_api
+      def initialize(sources_api:, topology_api:, metrics:)
+        self.metrics               = metrics
+        self.sources_api           = sources_api
+        self.sources_internal_api  = URI.parse(sources_api).tap { |uri| uri.path = "/internal/v1.0" }.to_s
+        self.topology_api          = topology_api
         self.topology_internal_api = URI.parse(topology_api).tap { |uri| uri.path = "/internal/v1.0" }.to_s
       end
 
@@ -69,6 +69,7 @@ module TopologicalInventory
         )
       rescue StandardError => e
         logger.error("Failed to update 'refresh_status' on source #{source["id"]}\n#{e.message}\n#{e.backtrace.join("\n")}")
+        metrics&.record_error(:api)
       end
 
       private
@@ -117,6 +118,7 @@ module TopologicalInventory
         nil
       rescue RestClient::Exception => e
         logger.error("Failed to get #{url}: #{e}")
+        metrics&.record_error(:api)
         raise
       end
 
