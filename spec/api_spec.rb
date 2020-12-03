@@ -2,7 +2,7 @@ describe TopologicalInventory::Orchestrator::Api do
   include MockData
   include Functions
 
-  let(:metrics) { double("Metrics/Orchestrator", :record_deployment_configs => nil, :record_config_maps => nil, :record_secrets => nil) }
+  let(:metrics) { double("Metrics/Orchestrator", :record_deployment_configs => nil, :record_config_maps => nil, :record_secrets => nil, :record_services => nil) }
   let(:api) { TopologicalInventory::Orchestrator::Api.new(:sources_api => sources_api, :topology_api => topology_api, :metrics => metrics) }
 
   describe "#internal_url_for" do

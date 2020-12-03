@@ -6,7 +6,7 @@ module TopologicalInventory
       # This class is intended as mock openshift storage
       class KubeClient
         attr_accessor :config_maps, :deployment_configs,
-                      :secrets, :endpoints,
+                      :secrets,:services, :endpoints,
                       :replication_controllers,
                       :pods
         # {
@@ -16,6 +16,7 @@ module TopologicalInventory
           self.config_maps = {}
           self.deployment_configs = {}
           self.secrets = {}
+          self.services = {}
           self.endpoints = {}
           self.replication_controllers = {}
           self.pods = {}
@@ -35,6 +36,10 @@ module TopologicalInventory
 
         def get_secrets(label_selector:, namespace:)
           find_by_label(secrets, label_selector)
+        end
+
+        def get_services(label_selector:, namespace:)
+          find_by_label(services, label_selector)
         end
 
         def get_deployment_config(name, _namespace)
@@ -57,6 +62,10 @@ module TopologicalInventory
           add_definition(secrets, definition)
         end
 
+        def create_service(definition)
+          add_definition(services, definition)
+        end
+
         # Noop, _map was updated outside
         def update_config_map(map)
           add_definition(config_maps, map.to_h)
@@ -65,6 +74,10 @@ module TopologicalInventory
         # Noop, _secret was updated outside
         def update_secret(secret)
           add_definition(secrets, secret.to_h)
+        end
+
+        def update_service(service)
+          add_definition(secrets, service.to_h)
         end
 
         # Now only for scaling, skipped
@@ -82,6 +95,10 @@ module TopologicalInventory
 
         def delete_secret(name, _namespace)
           secrets.delete(name)
+        end
+
+        def delete_service(name, _namespace)
+          services.delete(name)
         end
 
         def get_pods(namespace: nil, label_selector: "")

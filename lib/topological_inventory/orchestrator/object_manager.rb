@@ -144,6 +144,33 @@ module TopologicalInventory
         metrics&.record_config_maps(:remove, :source_type => source_type)
       end
 
+      def create_service(name, source_type = 'unknown')
+        definition = service_definition(name)
+        yield(definition) if block_given?
+        kube_connection.create_service(definition)
+
+        metrics&.record_services(:add, :source_type => source_type)
+      rescue KubeException => e
+        raise unless e.message =~ /already exists/
+        logger.warn("[WARN] Service already exists: #{name}")
+      end
+
+      def get_services(label_selector)
+        kube_connection.get_services(
+          :label_selector => label_selector,
+          :namespace      => my_namespace
+        )
+      end
+
+      def update_service(service)
+        kube_connection.update_service(service)
+      end
+
+      def delete_service(name, source_type = 'unknown')
+        kube_connection.delete_service(name, my_namespace)
+        metrics&.record_services(:remove, :source_type => source_type)
+      end
+
       def get_endpoint(name)
         kube_connection.get_endpoint(name, my_namespace)
       end
@@ -334,6 +361,26 @@ module TopologicalInventory
             :namespace => my_namespace
           },
           :stringData => string_data
+        }
+      end
+
+      def service_definition(name)
+        {
+          :metadata => {
+            :name => name,
+            :labels => {:app => app_name},
+            :namespace => my_namespace
+          },
+          :spec => {
+            :ports => {
+              :name => '9394',
+              :port => 9394,
+              :targetPort => 9394
+            },
+            :selector => {
+              :name => name
+            }
+          }
         }
       end
 
