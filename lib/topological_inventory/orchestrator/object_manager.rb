@@ -372,13 +372,13 @@ module TopologicalInventory
             :namespace => my_namespace
           },
           :spec => {
-            :ports => {
+            :ports => [{
               :name => '9394',
               :port => 9394,
               :targetPort => 9394
-            },
+            }],
             :selector => {
-              :name => name
+              :name => name.sub('service', 'collector')
             }
           }
         }
