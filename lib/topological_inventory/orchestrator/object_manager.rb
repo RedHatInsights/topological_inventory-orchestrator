@@ -367,18 +367,16 @@ module TopologicalInventory
       def service_definition(name)
         {
           :metadata => {
-            :name => name,
-            :labels => {:app => app_name},
+            :name      => name,
+            :labels    => {:app => app_name},
             :namespace => my_namespace
           },
-          :spec => {
-            :ports => [{
-              :name => '9394',
-              :port => 9394,
-              :targetPort => 9394
-            }],
+          :spec     => {
+            :ports    => [{:name       => '9394',
+                           :port       => 9394,
+                           :targetPort => 9394}],
             :selector => {
-              :name => name.sub('service', 'collector')
+              :name => name.sub('service-', 'collector-')
             }
           }
         }

@@ -6,7 +6,7 @@ module TopologicalInventory
       # This class is intended as mock openshift storage
       class KubeClient
         attr_accessor :config_maps, :deployment_configs,
-                      :secrets,:services, :endpoints,
+                      :secrets, :services, :endpoints,
                       :replication_controllers,
                       :pods
         # {
