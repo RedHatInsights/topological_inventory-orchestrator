@@ -11,6 +11,7 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
   let(:source_type) { TopologicalInventory::Orchestrator::SourceType.new(source_types_data[:openshift]) }
   let(:secret) { double('secret') }
   let(:deployment_config) { double('deployment_config') }
+  let(:service) { double('service') }
 
   let(:config_map) { described_class.new(object_manager, openshift_object) }
 
@@ -22,6 +23,7 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
       :logger                => double('logger').as_null_object,
       :new_secret            => secret,
       :new_deployment_config => deployment_config,
+      :new_service           => service,
       :source_type           => source_type,
       :uid                   => '1'
     )
@@ -31,6 +33,7 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
     allow(object_manager).to receive(:get_collector_image).and_return("123abc")
 
     allow(secret).to receive(:config_map=)
+    allow(service).to receive(:config_map=)
     allow(deployment_config).to receive(:config_map=)
 
     config_file = File.expand_path("../config/default.yml", File.dirname(__FILE__))
@@ -41,6 +44,7 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
   describe "#init_from_source" do
     before do
       allow(secret).to receive(:create_in_openshift)
+      allow(service).to receive(:create_in_openshift)
       allow(deployment_config).to receive(:create_in_openshift)
 
       allow(config_map).to receive(:yaml_from_sources).and_return("")
@@ -48,6 +52,7 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
 
     it "creates secret and deployment_config" do
       expect(secret).to receive(:create_in_openshift)
+      expect(service).to receive(:create_in_openshift)
       expect(deployment_config).to receive(:create_in_openshift)
 
       allow(source).to receive(:digest).and_return('1234')
@@ -55,6 +60,7 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
       config_map.init_from_source!(source)
 
       expect(config_map.secret).to eq(secret)
+      expect(config_map.service).to eq(service)
       expect(config_map.deployment_config).to eq(deployment_config)
     end
   end
@@ -162,7 +168,8 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
         allow(config_map).to receive_messages(:available?        => true,
                                               :digests           => [],
                                               :deployment_config => deployment_config,
-                                              :secret            => secret)
+                                              :secret            => secret,
+                                              :service           => service)
         allow(source).to receive_messages(:digest           => digest,
                                           :endpoint         => endpoint1,
                                           :from_sources_api => true)
@@ -178,6 +185,7 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
         allow(secret).to receive(:delete_in_openshift)
         allow(secret).to receive(:update!)
         allow(deployment_config).to receive(:delete_in_openshift)
+        allow(service).to receive(:delete_in_openshift)
 
         # 2x add, 1x remove, last remove doesn't update, but delete
         expect(object_manager).to receive(:update_config_map).exactly(3).times
@@ -208,6 +216,7 @@ describe TopologicalInventory::Orchestrator::ConfigMap do
         expect(object_manager).to receive(:delete_config_map).once
         expect(deployment_config).to receive(:delete_in_openshift)
         expect(secret).to receive(:delete_in_openshift)
+        expect(service).to receive(:delete_in_openshift)
         config_map.remove_source(source2)
       end
     end

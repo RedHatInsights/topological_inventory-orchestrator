@@ -89,6 +89,9 @@ describe TopologicalInventory::Orchestrator::Worker do
         object_manager.create_deployment_config("dc_#{version}", "openshift") do |dc|
           dc[:metadata][:labels][TopologicalInventory::Orchestrator::DeploymentConfig::LABEL_COMMON] = version
         end
+        object_manager.create_service("service_#{version}") do |service|
+          service[:metadata][:labels][TopologicalInventory::Orchestrator::Service::LABEL_COMMON] = version
+        end
       end
     end
 
@@ -96,12 +99,14 @@ describe TopologicalInventory::Orchestrator::Worker do
       expect(kube_client.config_maps.size).to eq(3)
       expect(kube_client.deployment_configs.size).to eq(3)
       expect(kube_client.secrets.size).to eq(3)
+      expect(kube_client.services.size).to eq(3)
 
       subject.send(:remove_deprecated_objects)
 
       expect(kube_client.config_maps.size).to eq(1)
       expect(kube_client.deployment_configs.size).to eq(1)
       expect(kube_client.secrets.size).to eq(1)
+      expect(kube_client.services.size).to eq(1)
 
       label = TopologicalInventory::Orchestrator::ConfigMap::LABEL_COMMON
       expect(object_manager.get_config_maps(label).first.metadata.labels[label]).to eq('v2')
@@ -109,6 +114,8 @@ describe TopologicalInventory::Orchestrator::Worker do
       expect(object_manager.get_deployment_configs(label).first.metadata.labels[label]).to eq('v2')
       label = TopologicalInventory::Orchestrator::Secret::LABEL_COMMON
       expect(object_manager.get_secrets(label).first.metadata.labels[label]).to eq('v2')
+      label = TopologicalInventory::Orchestrator::Service::LABEL_COMMON
+      expect(object_manager.get_services(label).first.metadata.labels[label]).to eq('v2')
     end
   end
 end

@@ -5,14 +5,14 @@ module TopologicalInventory
   module Orchestrator
     # The ConfigMap is identified by label LABEL_COMMON (not unique)
     # And by UUID, which is unique (data.uid)
-    # This UUID is also written to associated deployment_config and secret
+    # This UUID is also written to associated deployment_config, secret and service
     class ConfigMap < OpenshiftObject
       LABEL_COMMON = "tp-inventory/collectors-config-map".freeze
       LABEL_UNIQUE = "tp-inventory/config-uid".freeze
       LABEL_SOURCE_TYPE = "tp-inventory/source-type".freeze
 
       attr_accessor :source_type, :sources, :targeted_update
-      attr_writer :deployment_config, :secret
+      attr_writer :deployment_config, :secret, :service
 
       def to_s
         str = "#{uid} [#{sources.count} sources]"
@@ -174,6 +174,8 @@ module TopologicalInventory
         create_secret
 
         create_deployment_config
+
+        create_service
       end
 
       def create_secret
@@ -191,6 +193,23 @@ module TopologicalInventory
           s.config_map = self
         end
         @secret = secret if secret.openshift_object.present?
+      end
+
+      def create_service
+        @service = new_service.tap do |s|
+          s.config_map = self
+        end
+        @service.create_in_openshift
+      end
+
+      # Lazy load
+      def service
+        return @service if @service.present?
+
+        service = new_service.tap do |s|
+          s.config_map = self
+        end
+        @service = service if service.openshift_object.present?
       end
 
       def create_deployment_config
@@ -211,6 +230,7 @@ module TopologicalInventory
       end
 
       def delete_in_openshift
+        service&.delete_in_openshift
         deployment_config&.delete_in_openshift
         secret&.delete_in_openshift
 
@@ -408,6 +428,10 @@ module TopologicalInventory
 
       def new_secret
         Secret.new(object_manager)
+      end
+
+      def new_service
+        Service.new(object_manager)
       end
 
       def new_deployment_config

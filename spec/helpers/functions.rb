@@ -154,6 +154,7 @@ module Functions
     expect(kube_client.config_maps.size).to eq(cnt)
     expect(kube_client.deployment_configs.size).to eq(cnt)
     expect(kube_client.secrets.size).to eq(cnt)
+    expect(kube_client.services.size).to eq(cnt)
   end
 
   def assert_openshift_objects_data(source_data, endpoint_data: nil, auth_data: nil, digest: nil, missing: false)
