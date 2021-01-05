@@ -15,6 +15,7 @@ require "topological_inventory/orchestrator/config_map"
 require "topological_inventory/orchestrator/deployment_config"
 require "topological_inventory/orchestrator/event_manager"
 require "topological_inventory/orchestrator/secret"
+require "topological_inventory/orchestrator/service"
 require "topological_inventory/orchestrator/source_type"
 require "topological_inventory/orchestrator/source"
 
@@ -73,8 +74,11 @@ module TopologicalInventory
         # Assign config maps
         load_secrets
 
-        # Assign config maps
+        # Assign deployment configs
         load_deployment_configs
+
+        # Assign services
+        load_services
 
         # Adds or removes sources to/from openshift
         manage_openshift_collectors
@@ -82,6 +86,7 @@ module TopologicalInventory
         # Remove unused openshift objects
         remove_old_deployments
         remove_old_secrets
+        remove_old_services
         remove_completed_deploy_pods
       end
 
@@ -93,7 +98,7 @@ module TopologicalInventory
 
       attr_accessor :config_name,
                     :source_types_by_id, :sources_by_digest,
-                    :config_maps_by_uid, :deployment_configs, :secrets
+                    :config_maps_by_uid, :deployment_configs, :secrets, :services
 
       attr_writer :metrics
 
@@ -244,6 +249,37 @@ module TopologicalInventory
         logger.debug("Secrets loaded: #{@secrets.count}")
       end
 
+      # Loads services from Openshift and pairs them with config maps
+      # Then creates services for config maps which doesn't have it's associated service (i.e. manually deleted)
+      def load_services
+        @services, by_type = [], {}
+
+        object_manager.get_services("#{Service::LABEL_COMMON}=#{::Settings.labels.version}").each do |openshift_object|
+          service = Service.new(object_manager, openshift_object)
+          @services << service
+
+          next if service.uid.nil?
+
+          if (map = @config_maps_by_uid[service.uid]).present?
+            map.service = service
+            service.config_map = map
+
+            # Remember metrics
+            src_type_name = map.source_type.try(:[], 'name')
+            by_type[src_type_name] = by_type[src_type_name].to_i + 1
+          end
+        end
+
+        # Set metrics
+        by_type.each_pair do |source_type_name, cnt|
+          metrics&.record_services(:value => cnt, :source_type => source_type_name)
+        end
+
+        create_missing_services
+
+        logger.debug("Services loaded: #{@services.count}")
+      end
+
       # Add new sources to openshift and updates source refresh status in Topological API
       # Remove old sources from openshift
       def manage_openshift_collectors
@@ -272,7 +308,7 @@ module TopologicalInventory
               metrics&.record_error(:quota_error)
               @api.update_topological_inventory_source_refresh_status(source, "quota_limited")
 
-              # Remove config map and secret if they exist
+              # Remove config map, secret and service if they exist
               source.remove_from_openshift
             end
           #
@@ -325,6 +361,16 @@ module TopologicalInventory
       end
 
       # Self recovery
+      # If config map doesn't have service (deleted from outside), create new
+      def create_missing_services
+        @config_maps_by_uid.each_value do |map|
+          next if map.service.present?
+
+          map.create_service
+        end
+      end
+
+      # Self recovery
       # If config map doesn't have deployment config (deleted from outside), create new
       def create_missing_deployment_configs
         @config_maps_by_uid.each_value do |map|
@@ -353,6 +399,13 @@ module TopologicalInventory
         end
       end
 
+      # Remove services without config maps with the same UID
+      def remove_old_services
+        @services.to_a.each do |service|
+          service.delete_in_openshift if service.config_map.nil?
+        end
+      end
+
       # Get the collector image tag
       def get_collector_image(type)
         object_manager.get_collector_image(type)
@@ -366,6 +419,7 @@ module TopologicalInventory
         remove_deprecated_deployment_configs
         remove_deprecated_config_maps
         remove_deprecated_secrets
+        remove_deprecated_services
 
         logger.info("Deleting deprecated objects...[OK]")
       rescue => err
@@ -411,6 +465,19 @@ module TopologicalInventory
           object_manager.delete_secret(name)
         end
         logger.info("Deleting deprecated Secrets: [#{names.join(', ')}]")
+      end
+
+      def remove_deprecated_services
+        services = object_manager.get_services(Service::LABEL_COMMON).select do |obj|
+          obj.metadata.labels[Service::LABEL_COMMON] != ::Settings.labels.version
+        end
+        names = []
+        services.each do |service|
+          name = service.metadata.name
+          names << name
+          object_manager.delete_service(name)
+        end
+        logger.info("Deleting deprecated Services: [#{names.join(', ')}]")
       end
 
       def cleanup_errored_deployment_configs

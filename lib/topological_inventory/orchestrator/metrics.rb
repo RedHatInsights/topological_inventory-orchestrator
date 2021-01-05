@@ -45,7 +45,7 @@ module TopologicalInventory
         PrometheusExporter::Instrumentation::Process.start
         PrometheusExporter::Metric::Base.default_prefix = default_prefix
 
-        @error_counter = PrometheusExporter::Metric::Counter.new("error", ERROR_COUNTER_MESSAGE)
+        @error_counter = PrometheusExporter::Metric::Counter.new("errors_total", ERROR_COUNTER_MESSAGE)
         @server.collector.register_metric(@error_counter)
       end
 

@@ -121,7 +121,7 @@ module TopologicalInventory
       end
 
       # Main action! adds/updates or deletes source from config map
-      # Empty config maps are deleted (together with DC and Secret)
+      # Empty config maps are deleted (together with DC, Service and Secret)
       def manage_openshift_collectors
         @targets.each do |target|
           target[:action] = :create if target[:action] == :update && target[:source].config_map.blank?

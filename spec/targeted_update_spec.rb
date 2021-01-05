@@ -218,7 +218,7 @@ describe TopologicalInventory::Orchestrator::TargetedUpdate do
       assert_openshift_objects_data(sources_data[:amazon][@id4]) # no change
     end
 
-    it "deletes sources and removes empty config maps/secrets/DCs" do
+    it "deletes sources and removes empty config maps/secrets/services/DCs" do
       subject.add_target('Source', 'destroy', sources_data[:openshift][@id1])
       subject.add_target('Source', 'destroy', sources_data[:amazon][@id4])
 

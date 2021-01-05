@@ -1,7 +1,7 @@
 require 'topological_inventory/orchestrator/metrics/orchestrator'
 
 describe TopologicalInventory::Orchestrator::ObjectManager do
-  let(:metrics) { double("Metrics/Orchestrator", :record_deployment_configs => nil, :record_config_maps => nil, :record_secrets => nil) }
+  let(:metrics) { double("Metrics/Orchestrator", :record_deployment_configs => nil, :record_config_maps => nil, :record_secrets => nil, :record_services => nil) }
   let(:instance) { described_class.new(metrics) }
 
   context "#create_deployment_config" do
@@ -156,6 +156,12 @@ describe TopologicalInventory::Orchestrator::ObjectManager do
 
         instance.create_secret('', '', source_type)
       end
+
+      it "for Services" do
+        expect(metrics).to receive(:record_services).with(:add, :source_type => source_type)
+
+        instance.create_service('', source_type)
+      end
     end
 
     context "delete calls 'remove'" do
@@ -177,6 +183,12 @@ describe TopologicalInventory::Orchestrator::ObjectManager do
         expect(metrics).to receive(:record_secrets).with(:remove, :source_type => source_type)
 
         instance.delete_secret('', source_type)
+      end
+
+      it "for Services" do
+        expect(metrics).to receive(:record_services).with(:remove, :source_type => source_type)
+
+        instance.delete_service('', source_type)
       end
     end
   end
