@@ -8,12 +8,15 @@ module TopologicalInventory
   module Orchestrator
     class Metrics
       ERROR_COUNTER_MESSAGE = "total number of errors".freeze
+      ERROR_TYPES = %i[general].freeze
 
       def initialize(port = 9394)
         return if port.zero?
 
         configure_server(port)
         configure_metrics
+
+        init_counters
       end
 
       def stop_server
@@ -33,6 +36,13 @@ module TopologicalInventory
       end
 
       private
+
+      # Set all values to 0 (otherwise the counter is undefined)
+      def init_counters
+        self.class::ERROR_TYPES.each do |err_type|
+          @error_counter&.observe(0, :type => err_type)
+        end
+      end
 
       def configure_server(port)
         @server = PrometheusExporter::Server::WebServer.new(:port => port)

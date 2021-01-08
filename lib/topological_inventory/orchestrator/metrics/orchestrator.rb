@@ -4,6 +4,8 @@ module TopologicalInventory
   module Orchestrator
     class Metrics
       class Orchestrator < TopologicalInventory::Orchestrator::Metrics
+        ERROR_TYPES = %i[api event_manager secret quota_error].freeze
+
         def record_event(event_name)
           @events_counter&.observe(1, :event_name => event_name.to_s)
         end
