@@ -88,6 +88,7 @@ module TopologicalInventory
         remove_old_secrets
         remove_old_services
         remove_completed_deploy_pods
+        remove_dangling_collector_pods
       end
 
       protected
@@ -496,6 +497,24 @@ module TopologicalInventory
 
         logger.info("Deleting dangling deploy pods: [#{pods.map { |pod| pod.metadata.name }.join(",")}]")
         pods.each do |pod|
+          object_manager.delete_pod(pod.metadata.name)
+        end
+      end
+
+      # Some pods will not get deleted properly after a replication controller / deployment config
+      # get deleted, so we're left with dangling collectors that don't have a source.
+      # This cleans them up in the off chance it happens.
+      def remove_dangling_collector_pods
+        homeless_pods = object_manager.get_pods
+                                      .select { |pod| pod.metadata.name.match?(/^collector-/) }
+                                      .select do |pod|
+          name = pod.metadata.annotations["openshift.io/deployment-config.name"]
+
+          object_manager.get_deployment_config(name).nil?
+        end
+
+        logger.info("Deleting dangling collector pods: [#{homeless_pods.map { |pod| pod.metadata.name }.join(",")}]")
+        homeless_pods.each do |pod|
           object_manager.delete_pod(pod.metadata.name)
         end
       end
