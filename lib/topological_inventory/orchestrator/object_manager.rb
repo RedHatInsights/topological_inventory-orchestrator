@@ -28,6 +28,12 @@ module TopologicalInventory
         connection.patch_deployment_config(deployment_config_name, { :spec => { :replicas => replicas } }, my_namespace)
       end
 
+      def check_api_status
+        connection.api
+      rescue KubeException
+        nil
+      end
+
       def get_pods
         kube_connection.get_pods(:namespace => my_namespace)
       end
