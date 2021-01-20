@@ -1,12 +1,14 @@
 FROM registry.access.redhat.com/ubi8/ubi:8.3-227
 
-RUN dnf -y --disableplugin=subscription-manager module enable ruby:2.5 && \
+RUN dnf -y --disableplugin=subscription-manager module enable ruby:2.6 && \
     dnf -y --disableplugin=subscription-manager --setopt=tsflags=nodocs install \
       ruby-devel \
       # To compile native gem extensions
       gcc-c++ make redhat-rpm-config \
       # For git based gems
       git \
+      # For checking service status
+      nmap-ncat \
       && \
     dnf --disableplugin=subscription-manager clean all
 
