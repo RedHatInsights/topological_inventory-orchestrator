@@ -179,7 +179,7 @@ module TopologicalInventory
           {:name => "RECEPTOR_CONTROLLER_HOST", :value => ENV["RECEPTOR_CONTROLLER_HOST"]},
           {:name => "RECEPTOR_CONTROLLER_SCHEME", :value => ENV["RECEPTOR_CONTROLLER_SCHEME"]},
           {:name => "RECEPTOR_CONTROLLER_PORT", :value => ENV["RECEPTOR_CONTROLLER_PORT"]},
-          {:name => "RECEPTOR_CONTROLLER_PSK", :valueFrom => {:secretKeyRef => {:name => 'receptor', :key => 'RECEPTOR_CONTROLLER_PSK'}}},
+          {:name => "RECEPTOR_CONTROLLER_PSK", :valueFrom => {:secretKeyRef => {:name => ENV["RECEPTOR_CONTROLLER_SECRET_NAME"], :key => ENV["RECEPTOR_CONTROLLER_SECRET_KEY_PSK"]}}},
         ]
       end
 
