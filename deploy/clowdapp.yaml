@@ -1,0 +1,196 @@
+apiVersion: v1
+kind: Template
+metadata:
+  name: topological-inventory-orchestrator
+objects:
+- apiVersion: cloud.redhat.com/v1alpha1
+  kind: ClowdApp
+  metadata:
+    name: topo-orchestrator
+  spec:
+    envName: ${ENV_NAME}
+    deployments:
+    - name: svc
+      minReplicas: ${{MIN_REPLICAS}}
+      podSpec:
+        image: ${IMAGE}:${IMAGE_TAG}
+        env:
+        - name: SOURCES_API
+          value: ${SOURCES_SCHEME}://${SOURCES_HOST}:${SOURCES_PORT}/${PATH_PREFIX}/sources/${SOURCES_VERSION}
+        - name: RECEPTOR_CONTROLLER_HOST
+          value: ${RECEPTOR_CONTROLLER_HOST}
+        - name: RECEPTOR_CONTROLLER_PORT
+          value: ${RECEPTOR_CONTROLLER_PORT}
+        - name: RECEPTOR_CONTROLLER_SCHEME
+          value: ${RECEPTOR_CONTROLLER_SCHEME}
+        - name: RECEPTOR_CONTROLLER_SECRET_NAME
+          value: ${RECEPTOR_CONTROLLER_SECRET_NAME}
+        - name: RECEPTOR_CONTROLLER_SECRET_KEY_PSK
+          value: ${RECEPTOR_CONTROLLER_SECRET_KEY_PSK}
+        - name: TOPOLOGICAL_INVENTORY_API
+          value: ${TOPOLOGICAL_INVENTORY_SCHEME}://${TOPOLOGICAL_INVENTORY_HOST}:${TOPOLOGICAL_INVENTORY_PORT}/${PATH_PREFIX}/topological-inventory/${TOPOLOGICAL_INVENTORY_VERSION}
+        - name: MY_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: CONFIG
+          value: ${CONFIG}
+        - name: ENABLED_SOURCE_TYPES
+          value: ${ENABLED_SOURCE_TYPES}
+        - name: SCHEDULED_SYNC_HOURS
+          value: ${SCHEDULED_SYNC_HOURS}
+        - name: COLLECTOR_LIMIT_CPU
+          value: ${COLLECTOR_LIMIT_CPU}
+        - name: COLLECTOR_LIMIT_MEM
+          value: ${COLLECTOR_LIMIT_MEM}
+        - name: COLLECTOR_REQUEST_CPU
+          value: ${COLLECTOR_REQUEST_CPU}
+        - name: COLLECTOR_REQUEST_MEM
+          value: ${COLLECTOR_REQUEST_MEM}
+        - name: COLLECTOR_POLL_TIME
+          value: ${COLLECTOR_POLL_TIME}
+        - name: LOG_LEVEL
+          value: ${LOG_LEVEL}
+        - name: COLLECTOR_LOG_LEVEL
+          value: ${COLLECTOR_LOG_LEVEL}
+        - name: HEALTH_CHECK_INTERVAL
+          value: ${HEALTH_CHECK_INTERVAL}
+        resources:
+          limits:
+            cpu: ${CPU_LIMIT}
+            memory: ${MEMORY_LIMIT}
+          requests:
+            cpu: ${CPU_REQUEST}
+            memory: ${MEMORY_REQUEST}
+        livenessProbe:
+          exec:
+            command:
+            - bash
+            - -c
+            - test -f /tmp/healthy
+          initialDelaySeconds: 30
+          periodSeconds: ${{HEALTH_CHECK_INTERVAL}}
+        # Not implemented yet?
+        serviceAccountName: topological-inventory-orchestrator
+    # - name: metrics-scaler # Not used
+    kafkaTopics:
+    - topicName: platform.sources.event-stream
+      partitions: 3
+      replicas: 3
+parameters:
+- description: Clowder ENV
+  name: ENV_NAME
+  required: true
+- description: Image
+  name: IMAGE
+  value: quay.io/cloudservices/topological-inventory-orchestrator
+- name: IMAGE_TAG
+  displayName: Image Tag
+  description: The environment tag used for deploying containers i.e. latest / stable
+  value: latest
+- name: COLLECTOR_LIMIT_CPU
+  displayName: Collector CPU Limit
+  description: Collector DeploymentConfig CPU Limit
+  value: "100m"
+- name: COLLECTOR_LIMIT_MEM
+  displayName: Collector Memory Limit
+  description: Collector DeploymentConfig Memory Limit
+  value: "500Mi"
+- name: COLLECTOR_LOG_LEVEL
+  description: Log Level to set in the collector deployments
+  value: WARN
+- name: COLLECTOR_POLL_TIME
+  description: How often the collectors will do a full refresh in seconds
+  value: "300"
+- name: COLLECTOR_REQUEST_CPU
+  displayName: Collector CPU Request
+  description: Collector DeploymentConfig CPU Request
+  value: "50m"
+- name: COLLECTOR_REQUEST_MEM
+  displayName: Collector Memory Requeset
+  description: Collector DeploymentConfig Memory Request
+  value: "200Mi"
+- name: CONFIG
+  displayName: Name of config file
+  description: Name of config file (without .yml), can be config map
+  value: default
+- name: CPU_LIMIT
+  value: "100m"
+- name: CPU_REQUEST
+  value: "100m"
+- name: ENABLED_SOURCE_TYPES
+  displayName: Enabled Source Types
+  description: List of Source Types to spin up collectors/operations pods for.
+  value: amazon,ansible-tower,azure
+- name: HEALTH_CHECK_INTERVAL
+  value: "60"
+- name: LOG_LEVEL
+  value: WARN
+- name: MEMORY_LIMIT
+  value: "200Mi"
+- name: MEMORY_REQUEST
+  value: "100Mi"
+- name: MIN_REPLICAS
+  description: The number of replicas to use for the ochestrator
+  displayName: Number of replicas for orchestrator (max 1)
+  value: "1"
+- name: PATH_PREFIX
+  displayName: Path Prefix
+  description: Base path for the API
+- name: RECEPTOR_CONTROLLER_HOST
+  displayName: Receptor Hostname
+  description: Hostname which will be used to contact the Platform Receptor Controller
+- name: RECEPTOR_CONTROLLER_PORT
+  displayName: Receptor Port
+  description: Port which will be used to contact the Platform Receptor Controller
+  value: "9090"
+- name: RECEPTOR_CONTROLLER_SCHEME
+  displayName: Receptor Scheme
+  description: Scheme to use for the Platform Receptor Controller URL.
+  value: http
+- name: RECEPTOR_CONTROLLER_SECRET_NAME
+  displayName: Receptor secret name
+  description: Name of the Receptor PSK secret
+  value: receptor
+- name: RECEPTOR_CONTROLLER_SECRET_KEY_PSK
+  displayName: PSK key name in the Receptor secret
+  description: Name of the key in the RECEPTOR_CONTROLLER_SECRET_NAME
+  value: RECEPTOR_CONTROLLER_PSK
+- name: SCHEDULED_SYNC_HOURS
+  displayName: Scheduled Sync Hours
+  description: How long to wait between full syncs in hours
+  value: "1"
+- name: SOURCES_HOST
+  displayName: Sources Service Host
+  description: Host to use for the Sources service URL.
+  required: true
+  value: sources-api-svc
+- name: SOURCES_PORT
+  displayName: Sources Service Port
+  description: Port to use for the Sources service URL.
+  value: "8000"
+- name: SOURCES_SCHEME
+  displayName: Sources Service Scheme
+  description: Scheme to use for the Sources service URL.
+  value: http
+- name: SOURCES_VERSION
+  displayName: Sources Service API Version
+  description: Version to use for the Sources service URL.
+  value: v3.0
+- name: TOPOLOGICAL_INVENTORY_HOST
+  displayName: Topological Inventory Service Host
+  description: Host to use for the Topological Inventory service URL.
+  required: true
+  value: topo-api-svc
+- name: TOPOLOGICAL_INVENTORY_PORT
+  displayName: Topological Inventory Service Port
+  description: Port to use for the Topological Inventory service URL.
+  value: "8000"
+- name: TOPOLOGICAL_INVENTORY_SCHEME
+  displayName: Topological Inventory Service Scheme
+  description: Scheme to use for the Topological Inventory service URL.
+  value: http
+- name: TOPOLOGICAL_INVENTORY_VERSION
+  displayName: Topological Inventory Service API Version
+  description: Version to use for the Topological Inventory service URL.
+  value: v3.0

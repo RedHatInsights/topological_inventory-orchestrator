@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 
 require "bundler/setup"
+require "topological_inventory/orchestrator/clowder_config"
 
 $:.push File.expand_path("../../lib", __FILE__)
 
@@ -9,6 +10,10 @@ args = Optimist.options do
   opt :metrics_port, "Port to expose the metrics endpoint on, 0 to disable metrics", :type => :integer, :default => (ENV['METRICS_PORT'] || 9394).to_i
   opt :prometheus_host, "Host of the prometheus metrics server", :type => :string, :default => ENV['PROMETHEUS_HOST']
   opt :prometheus_port, "Port of the prometheus metrics server", :type => :integer, :default => ENV['PROMETHEUS_PORT']&.to_i
+end
+
+if TopologicalInventory::Orchestrator::ClowderConfig.clowder_enabled?
+  TopologicalInventory::Orchestrator::ClowderConfig.fill_args(args)
 end
 
 require "topological_inventory/orchestrator/metrics/metrics_scaler"

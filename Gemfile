@@ -4,6 +4,7 @@ plugin "bundler-inject", "~> 1.1"
 require File.join(Bundler::Plugin.index.load_paths("bundler-inject")[0], "bundler-inject") rescue nil
 
 gem "activesupport",        '~> 5.2.4.3'
+gem "clowder-common-ruby",  "~> 0.2.2"
 gem "cloudwatchlogger",     "~> 0.2.1"
 gem "config",               "~> 1.7.2"
 gem "http",                 "~> 4.1.1"
