@@ -7,9 +7,6 @@ objects:
   kind: ClowdApp
   metadata:
     name: topo-orchestrator
-    labels:
-      app: topological-inventory
-      clowdapp: topo-orchestrator
   spec:
     envName: ${ENV_NAME}
     deployments:
@@ -73,8 +70,7 @@ objects:
             - test -f /tmp/healthy
           initialDelaySeconds: 30
           periodSeconds: ${{HEALTH_CHECK_INTERVAL}}
-        # Not implemented yet?
-        serviceAccountName: topological-inventory-orchestrator
+      k8sAccessLevel: edit # ServiceAccount
     # - name: metrics-scaler # Not used
     kafkaTopics:
     - topicName: platform.sources.event-stream
