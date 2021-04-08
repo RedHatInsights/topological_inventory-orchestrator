@@ -1,3 +1,5 @@
+require "topological_inventory/orchestrator/clowder_config"
+
 module TopologicalInventory
   module Orchestrator
     # Event Manager subscribes to kafka topic "platform.sources.event-stream"
@@ -119,7 +121,7 @@ module TopologicalInventory
       end
 
       def queue_name
-        "platform.sources.event-stream"
+        TopologicalInventory::Orchestrator::ClowderConfig.kafka_topic("platform.sources.event-stream")
       end
 
       # Orchestrator is listening to these events
@@ -133,8 +135,8 @@ module TopologicalInventory
       def messaging_client
         @messaging_client ||= ManageIQ::Messaging::Client.open(
           :protocol    => :Kafka,
-          :host        => ENV["QUEUE_HOST"] || "localhost",
-          :port        => ENV["QUEUE_PORT"] || "9092",
+          :host        => TopologicalInventory::Orchestrator::ClowderConfig.instance["kafkaHost"],
+          :port        => TopologicalInventory::Orchestrator::ClowderConfig.instance["kafkaPort"],
           :group_ref   => persist_ref,
           :persist_ref => persist_ref,
           :encoding    => "json"
